@@ -62,18 +62,17 @@ ACCOUNT_ID=$(aws sts get-caller-identity --profile $AWS_PROFILE --query Account 
 echo "✅ Authenticated as account: $ACCOUNT_ID (profile: $AWS_PROFILE)"
 echo ""
 
-# Step 1: Build GOG CLI for Linux ARM64
-echo "🔨 Step 1: Building GOG CLI for Linux ARM64..."
-if command -v go &> /dev/null; then
-    GOG_BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gog-build.XXXXXX")
-    git clone --depth 1 https://github.com/steipete/gogcli.git "$GOG_BUILD_DIR" 2>/dev/null
-    GOOS=linux GOARCH=arm64 go build -C "$GOG_BUILD_DIR" -o "$(pwd)/agent-container/gog" ./cmd/gog
-    rm -rf "$GOG_BUILD_DIR"
-    echo "✅ GOG CLI built ($(file agent-container/gog))"
+# Step 1: Download GOG CLI for Linux ARM64
+echo "🔨 Step 1: Downloading GOG CLI for Linux ARM64..."
+GOG_VERSION="0.11.0"
+GOG_URL="https://github.com/steipete/gogcli/releases/download/v${GOG_VERSION}/gogcli_${GOG_VERSION}_linux_arm64.tar.gz"
+curl -fsSL "$GOG_URL" | tar -xz -C agent-container gog
+if [ -f agent-container/gog ]; then
+    echo "✅ GOG CLI v${GOG_VERSION} downloaded ($(file agent-container/gog))"
 else
-    echo "⚠️  Go not installed — skipping GOG CLI build (gog skill won't work)"
+    echo "⚠️  GOG CLI download failed — gog skill won't work"
     echo '#!/bin/sh' > agent-container/gog
-    echo 'echo "GOG CLI not installed. Install Go and rebuild."' >> agent-container/gog
+    echo 'echo "GOG CLI not available"' >> agent-container/gog
     chmod +x agent-container/gog
 fi
 echo ""
