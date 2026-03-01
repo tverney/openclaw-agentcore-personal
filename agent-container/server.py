@@ -226,6 +226,93 @@ def restore_sessions_from_s3() -> None:
     except Exception as e:
         logger.error(f"Unexpected error during S3 restore: {e}", exc_info=True)
 
+GOG_CONFIG_DIR = "/root/.config/gogcli"
+GOG_S3_PREFIX = "gog-credentials/"
+
+
+def restore_gog_credentials_from_s3() -> None:
+    """Restore GOG (Google Workspace CLI) credentials from S3.
+
+    Downloads:
+      - gog-credentials/credentials.json → GOG OAuth client credentials
+      - gog-credentials/token.json       → GOG refresh token
+
+    After downloading, imports the token into GOG's file-based keyring
+    so the CLI can authenticate without a browser.
+    """
+    bucket_name = os.environ.get("SESSION_BACKUP_BUCKET")
+    gog_account = os.environ.get("GOG_ACCOUNT")
+    if not bucket_name:
+        return
+    if not gog_account:
+        logger.info("GOG_ACCOUNT not set, skipping GOG credential restore")
+        return
+
+    try:
+        s3_client = boto3.client("s3")
+        os.makedirs(GOG_CONFIG_DIR, exist_ok=True)
+
+        # Download credentials.json (OAuth client ID/secret)
+        creds_key = f"{GOG_S3_PREFIX}credentials.json"
+        creds_path = os.path.join(GOG_CONFIG_DIR, "credentials.json")
+        try:
+            s3_client.download_file(bucket_name, creds_key, creds_path)
+            logger.info("Downloaded GOG credentials.json from S3")
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                logger.info("No GOG credentials.json in S3, skipping")
+                return
+            raise
+
+        # Download token.json (refresh token export)
+        token_key = f"{GOG_S3_PREFIX}token.json"
+        token_path = "/tmp/gog-token-import.json"
+        try:
+            s3_client.download_file(bucket_name, token_key, token_path)
+            logger.info("Downloaded GOG token.json from S3")
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                logger.info("No GOG token in S3, skipping token import")
+                return
+            raise
+
+        # Configure GOG to use file-based keyring (no macOS Keychain in container)
+        subprocess.run(
+            ["gog", "auth", "keyring", "file"],
+            capture_output=True, timeout=10,
+        )
+
+        # Import the client credentials
+        subprocess.run(
+            ["gog", "auth", "credentials", "import", creds_path],
+            capture_output=True, timeout=10,
+        )
+
+        # Import the refresh token
+        result = subprocess.run(
+            ["gog", "auth", "tokens", "import", token_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            logger.info(f"GOG credentials restored for {gog_account}")
+        else:
+            logger.warning(f"GOG token import failed: {result.stderr}")
+
+        # Set default account
+        os.environ["GOG_ACCOUNT"] = gog_account
+
+        # Cleanup temp file
+        try:
+            os.remove(token_path)
+        except OSError:
+            pass
+
+    except ClientError as e:
+        logger.error(f"S3 error restoring GOG credentials: {e}")
+    except Exception as e:
+        logger.error(f"Failed to restore GOG credentials: {e}", exc_info=True)
+
+
 
 def sync_sessions_to_s3() -> None:
     """Sync openclaw state (sessions + workspace) to S3.
@@ -704,6 +791,9 @@ def main():
     
     logger.info("Restoring state from S3 (overwriting openclaw defaults)...")
     restore_sessions_from_s3()
+    
+    # Restore GOG (Google Workspace) credentials if configured
+    restore_gog_credentials_from_s3()
     
     _log_workspace_state("AFTER restore (S3 data)")
     

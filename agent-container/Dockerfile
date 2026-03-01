@@ -22,6 +22,11 @@ RUN apt-get update && \
 # Copy openclaw application from base image
 COPY --from=openclaw-base /app /openclaw-app
 
+# Install GOG CLI (Google Workspace) - Linux ARM64
+RUN curl -fsSL https://github.com/steipete/gogcli/releases/latest/download/gog_linux_arm64.tar.gz \
+    | tar -xz -C /usr/local/bin gog 2>/dev/null \
+    || echo "GOG CLI not available for this platform, skipping"
+
 # Create openclaw wrapper script
 RUN echo '#!/bin/sh\nexec node /openclaw-app/openclaw.mjs "$@"' > /usr/local/bin/openclaw \
     && chmod +x /usr/local/bin/openclaw

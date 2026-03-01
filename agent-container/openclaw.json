@@ -24,7 +24,9 @@
           {
             "id": "${BEDROCK_MODEL_ID}",
             "name": "Bedrock Model",
-            "input": ["text"],
+            "input": [
+              "text"
+            ],
             "contextWindow": 200000,
             "maxTokens": 8192,
             "reasoning": false
@@ -37,6 +39,35 @@
     "defaults": {
       "model": {
         "primary": "amazon-bedrock/${BEDROCK_MODEL_ID}"
+      }
+    }
+  },
+  "skills": {
+    "load": {
+      "watch": true,
+      "watchDebounceMs": 250
+    },
+    "entries": {
+      "humanizer": {
+        "enabled": true
+      },
+      "web-search": {
+        "enabled": true,
+        "env": {
+          "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+        }
+      },
+      "google-workspace": {
+        "enabled": true,
+        "env": {
+          "GOG_ACCOUNT": "${GOG_ACCOUNT}"
+        }
+      },
+      "memory": {
+        "enabled": true
+      },
+      "weather": {
+        "enabled": true
       }
     }
   }

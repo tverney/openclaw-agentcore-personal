@@ -530,6 +530,8 @@ Resources:
         SESSION_BACKUP_BUCKET: !Ref SessionBackupBucket
         DEPLOYMENT_VERSION: !Ref DeploymentVersion
         OPENCLAW_AUTH_TOKEN: "openclaw-static-token-12345"
+        GOG_ACCOUNT: "lobinhaclowdia@gmail.com"
+        TAVILY_API_KEY: "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"
       Tags:
         Project: OpenClaw
         Environment: Personal
