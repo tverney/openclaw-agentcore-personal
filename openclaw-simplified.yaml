@@ -41,6 +41,11 @@ Parameters:
     Default: "10"
     Description: "Internal version number to force instance replacement on config changes"
   
+  DeploymentVersion:
+    Type: String
+    Default: "58"
+    Description: "Increment this value to force AgentCore runtime to redeploy with the latest container image"
+
   DiscordBotKeyPair:
     Type: String
     Default: ""
@@ -523,7 +528,7 @@ Resources:
         AWS_REGION: !Ref AWS::Region
         BEDROCK_MODEL_ID: !Ref DefaultModelId
         SESSION_BACKUP_BUCKET: !Ref SessionBackupBucket
-        DEPLOYMENT_VERSION: "45"
+        DEPLOYMENT_VERSION: !Ref DeploymentVersion
       Tags:
         Project: OpenClaw
         Environment: Personal

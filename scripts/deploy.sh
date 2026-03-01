@@ -111,7 +111,20 @@ echo ""
 
 # Step 5: Deploy CloudFormation stack
 echo "☁️  Step 5: Deploying CloudFormation stack..."
-DEPLOY_PARAMS="AdminEmail=$ADMIN_EMAIL MonthlyBudgetLimit=$MONTHLY_BUDGET DefaultModelId=$DEFAULT_MODEL"
+# Auto-increment DeploymentVersion to force AgentCore runtime update
+CURRENT_VERSION=$(aws cloudformation describe-stacks \
+    --stack-name $STACK_NAME \
+    --profile $AWS_PROFILE \
+    --region $AWS_REGION \
+    --query 'Stacks[0].Parameters[?ParameterKey==`DeploymentVersion`].ParameterValue' \
+    --output text 2>/dev/null || echo "0")
+if [ "$CURRENT_VERSION" = "None" ] || [ -z "$CURRENT_VERSION" ]; then
+    CURRENT_VERSION="0"
+fi
+DEPLOYMENT_VERSION=$((CURRENT_VERSION + 1))
+echo "   Deployment Version: $CURRENT_VERSION → $DEPLOYMENT_VERSION"
+
+DEPLOY_PARAMS="AdminEmail=$ADMIN_EMAIL MonthlyBudgetLimit=$MONTHLY_BUDGET DefaultModelId=$DEFAULT_MODEL DeploymentVersion=$DEPLOYMENT_VERSION"
 
 if [ -n "$DISCORD_BOT_TOKEN" ]; then
     echo "   Including Discord bot configuration..."
