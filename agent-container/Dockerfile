@@ -1,11 +1,7 @@
 # Stage 1: Extract openclaw application from official image
 FROM ghcr.io/openclaw/openclaw:latest AS openclaw-base
 
-# Stage 2: Build GOG CLI from source
-FROM golang:1.23-bookworm AS gog-builder
-RUN go install github.com/steipete/gogcli/cmd/gog@latest
-
-# Stage 3: Python 3.12 slim runtime with Node.js
+# Stage 2: Python 3.12 slim runtime with Node.js
 FROM python:3.12-slim
 
 # Install security updates, Node.js 22.x, and curl
@@ -26,8 +22,9 @@ RUN apt-get update && \
 # Copy openclaw application from base image
 COPY --from=openclaw-base /app /openclaw-app
 
-# Copy GOG CLI binary from builder stage
-COPY --from=gog-builder /go/bin/gog /usr/local/bin/gog
+# Copy GOG CLI binary (built locally via deploy.sh)
+COPY agent-container/gog /usr/local/bin/gog
+RUN chmod +x /usr/local/bin/gog
 
 # Create openclaw wrapper script
 RUN echo '#!/bin/sh\nexec node /openclaw-app/openclaw.mjs "$@"' > /usr/local/bin/openclaw \

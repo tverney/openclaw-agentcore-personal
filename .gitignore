@@ -69,6 +69,9 @@ yarn-error.log*
 # Skills config state (contains API keys)
 .openclaw-skills-state.json
 
+# Built binaries
+agent-container/gog
+
 # CloudFormation
 .cfn-lint-ignore
 
