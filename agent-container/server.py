@@ -283,10 +283,12 @@ def restore_gog_credentials_from_s3() -> None:
         )
 
         # Import the client credentials
-        subprocess.run(
-            ["gog", "auth", "credentials", "import", creds_path],
-            capture_output=True, timeout=10,
+        result = subprocess.run(
+            ["gog", "auth", "credentials", "set", creds_path],
+            capture_output=True, text=True, timeout=10,
         )
+        if result.returncode != 0:
+            logger.warning(f"GOG credentials set failed: {result.stderr}")
 
         # Import the refresh token
         result = subprocess.run(
