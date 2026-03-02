@@ -490,14 +490,20 @@ def start_openclaw() -> subprocess.Popen:
         stderr=subprocess.STDOUT,
     )
     
+    # Write openclaw output to a log file for debugging
+    openclaw_log_path = "/tmp/openclaw-subprocess.log"
+    
     def log_openclaw_output():
-        for line in proc.stdout:
-            decoded = line.decode().rstrip()
-            # Log all openclaw output, including errors
-            if "error" in decoded.lower() or "exception" in decoded.lower() or "failed" in decoded.lower():
-                logger.error(f"[openclaw] {decoded}")
-            else:
-                logger.info(f"[openclaw] {decoded}")
+        with open(openclaw_log_path, "w") as logf:
+            for line in proc.stdout:
+                decoded = line.decode().rstrip()
+                logf.write(decoded + "\n")
+                logf.flush()
+                # Log all openclaw output, including errors
+                if "error" in decoded.lower() or "exception" in decoded.lower() or "failed" in decoded.lower():
+                    logger.error(f"[openclaw] {decoded}")
+                else:
+                    logger.info(f"[openclaw] {decoded}")
     
     threading.Thread(target=log_openclaw_output, daemon=True).start()
     
@@ -668,6 +674,36 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                 diag["skills_dir"] = str(glob.glob("/app/skills/**/*", recursive=True))
             except Exception as e:
                 diag["skills_dir"] = f"error: {e}"
+            # Check resolved openclaw.json (after env var substitution)
+            try:
+                with open('/root/.openclaw/openclaw.json', 'r') as f:
+                    resolved = f.read()
+                diag["resolved_config"] = resolved[:1000]
+            except Exception as e:
+                diag["resolved_config"] = f"error: {e}"
+            # Check openclaw process status
+            try:
+                import subprocess as sp
+                ps = sp.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+                openclaw_procs = [l for l in ps.stdout.splitlines() if "openclaw" in l.lower()]
+                diag["openclaw_processes"] = openclaw_procs if openclaw_procs else "no openclaw processes found"
+            except Exception as e:
+                diag["openclaw_processes"] = f"error: {e}"
+            # Check bundled skills directory
+            try:
+                import glob
+                bundled = glob.glob("/openclaw-app/skills/**/*", recursive=True)
+                diag["bundled_skills"] = str(bundled[:30])
+            except Exception as e:
+                diag["bundled_skills"] = f"error: {e}"
+            # Check openclaw subprocess log
+            try:
+                with open('/tmp/openclaw-subprocess.log', 'r') as f:
+                    diag["openclaw_log"] = ''.join(f.readlines()[-30:])
+            except FileNotFoundError:
+                diag["openclaw_log"] = "no subprocess log"
+            except Exception as e:
+                diag["openclaw_log"] = f"error: {e}"
             self._respond(200, diag)
             return
         
