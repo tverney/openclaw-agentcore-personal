@@ -848,6 +848,102 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
             self._respond(200, diag)
             return
         
+        # Cron management actions — openclaw cron runs inside the gateway,
+        # not accessible via chat completions API, so we expose CLI wrappers.
+        if payload.get("action") == "cron-list":
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "list"],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-status":
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "status"],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-add":
+            # Expects: name, cron, message, and optionally tz, session, announce
+            cron_args = ["openclaw", "cron", "add"]
+            name = payload.get("name")
+            cron_expr = payload.get("cron")
+            msg = payload.get("cron_message")  # 'message' is already used for chat
+            tz = payload.get("tz")
+            session_mode = payload.get("session", "isolated")
+            announce = payload.get("announce", True)
+            
+            if not name or not msg:
+                self._respond(400, {"error": "name and cron_message are required"})
+                return
+            
+            cron_args.extend(["--name", name])
+            if cron_expr:
+                cron_args.extend(["--cron", cron_expr])
+            cron_args.extend(["--session", session_mode])
+            cron_args.extend(["--message", msg])
+            if tz:
+                cron_args.extend(["--tz", tz])
+            if announce:
+                cron_args.append("--announce")
+            
+            try:
+                logger.info(f"Creating cron job: {' '.join(cron_args)}")
+                result = subprocess.run(
+                    cron_args,
+                    capture_output=True, text=True, timeout=30,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                    input="\n",  # Auto-confirm any prompts
+                )
+                logger.info(f"Cron add result: exit={result.returncode}, stdout={result.stdout[:500]}, stderr={result.stderr[:500]}")
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-remove":
+            job_id = payload.get("job_id")
+            if not job_id:
+                self._respond(400, {"error": "job_id is required"})
+                return
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "rm", job_id],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
         # Select model based on channel
         selected_model = select_model_for_channel(channel)
         
