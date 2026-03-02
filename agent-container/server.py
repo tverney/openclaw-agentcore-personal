@@ -615,6 +615,62 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
             })
             return
         
+        # Diagnostic action — returns debug info about each subsystem
+        if payload.get("action") == "diagnose":
+            diag = {"deployment_version": os.environ.get("DEPLOYMENT_VERSION", "unknown")}
+            # Check openclaw health
+            try:
+                r = requests.get(
+                    f"{OPENCLAW_URL}/health",
+                    headers={"Authorization": f"Bearer {OPENCLAW_AUTH_TOKEN}"},
+                    timeout=5,
+                )
+                diag["openclaw_health"] = f"status={r.status_code}"
+            except Exception as e:
+                diag["openclaw_health"] = f"error: {e}"
+            # Check S3 access
+            try:
+                s3 = boto3.client("s3")
+                bucket = os.environ.get("SESSION_BACKUP_BUCKET", "")
+                if bucket:
+                    s3.head_bucket(Bucket=bucket)
+                    diag["s3_bucket"] = f"ok ({bucket})"
+                else:
+                    diag["s3_bucket"] = "not configured"
+            except Exception as e:
+                diag["s3_bucket"] = f"error: {e}"
+            # Check memory load
+            try:
+                mem = load_memory_from_s3()
+                diag["memory_load"] = f"ok ({len(mem)} bytes)"
+            except Exception as e:
+                diag["memory_load"] = f"error: {e}"
+            # Check openclaw chat endpoint
+            try:
+                r = requests.post(
+                    f"{OPENCLAW_URL}/v1/chat/completions",
+                    json={"model": DEFAULT_MODEL, "messages": [{"role": "user", "content": "ping"}]},
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {OPENCLAW_AUTH_TOKEN}"},
+                    timeout=30,
+                )
+                diag["openclaw_chat"] = f"status={r.status_code}, body={r.text[:300]}"
+            except Exception as e:
+                diag["openclaw_chat"] = f"error: {e}"
+            # Check error log
+            try:
+                with open('/tmp/openclaw-errors.log', 'r') as f:
+                    diag["error_log"] = ''.join(f.readlines()[-20:])
+            except FileNotFoundError:
+                diag["error_log"] = "no log file"
+            # Check skills directory
+            try:
+                import glob
+                diag["skills_dir"] = str(glob.glob("/app/skills/**/*", recursive=True))
+            except Exception as e:
+                diag["skills_dir"] = f"error: {e}"
+            self._respond(200, diag)
+            return
+        
         # Select model based on channel
         selected_model = select_model_for_channel(channel)
         
