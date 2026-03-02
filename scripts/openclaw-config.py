@@ -42,12 +42,12 @@ class Skill:
 # Skills curated for a personal AWS-hosted deployment
 SKILL_CATALOG: dict[str, Skill] = {
     # ── Bundled / Zero-config skills ──
-    "web-search": Skill(
-        name="web-search",
-        description="Search the web and fetch page content (uses Tavily Search API)",
+    "tavily": Skill(
+        name="tavily",
+        description="AI-optimized web search via Tavily API (custom skill with CLI script)",
         category="search",
         requires_api_key="TAVILY_API_KEY",
-        notes="Free tier: 1000 queries/month at tavily.com. AI-optimized search results.",
+        notes="Free tier: 1000 queries/month at tavily.com. Custom skill at /app/skills/tavily/.",
         cost_impact="none",
     ),
     "memory": Skill(
@@ -228,12 +228,12 @@ SKILL_CATALOG: dict[str, Skill] = {
 PRESETS = {
     "minimal": {
         "description": "Core skills only — memory, weather, web search",
-        "skills": ["memory", "weather", "web-search", "humanizer"],
+        "skills": ["memory", "weather", "tavily", "humanizer"],
     },
     "standard": {
         "description": "Recommended for personal use — core + dev + productivity",
         "skills": [
-            "memory", "weather", "web-search", "humanizer",
+            "memory", "weather", "tavily", "humanizer",
             "session-logs", "github", "git",
             "cloudwatch-logs", "s3-browser",
         ],

@@ -68,6 +68,7 @@ yarn-error.log*
 
 # Skills config state (contains API keys)
 .openclaw-skills-state.json
+agent-container/.openclaw-skills-state.json
 
 # Built binaries
 agent-container/gog
@@ -81,5 +82,8 @@ sessions/
 
 # Local development artifacts
 images/
-skills/
 src/
+
+# Skills — ignore top-level community skills folder, but keep agent-container custom skills
+skills/
+!agent-container/skills/
