@@ -43,13 +43,41 @@ Parameters:
   
   DeploymentVersion:
     Type: String
-    Default: "61"
+    Default: "64"
     Description: "Increment this value to force AgentCore runtime to redeploy with the latest container image"
 
   DiscordBotKeyPair:
     Type: String
     Default: ""
     Description: "EC2 Key Pair name for SSH access to Discord bot (optional, leave empty for no SSH access)"
+
+  OpenClawAuthToken:
+    Type: String
+    Description: "Authentication token for OpenClaw gateway"
+    NoEcho: true
+    Default: ""
+
+  GogAccount:
+    Type: String
+    Description: "GOG (Google Workspace) account email"
+    Default: ""
+
+  GogKeyringPassword:
+    Type: String
+    Description: "GOG keyring password"
+    NoEcho: true
+    Default: ""
+
+  TavilyApiKey:
+    Type: String
+    Description: "Tavily search API key"
+    NoEcho: true
+    Default: ""
+
+  CronModelId:
+    Type: String
+    Default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    Description: "Bedrock model ID used for scheduled cron job execution"
 
 Conditions:
   CreateDiscordBot: !Equals [!Ref EnableDiscordBot, "true"]
@@ -499,6 +527,10 @@ Resources:
                   - bedrock:Converse
                   - bedrock:ConverseStream
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:ListAgentRuntimes
+                Resource: "*"
         - PolicyName: ECRAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -536,6 +568,26 @@ Resources:
                 Action:
                   - s3:ListBucket
                 Resource: !GetAtt SessionBackupBucket.Arn
+        - PolicyName: EventBridgeSchedulerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - scheduler:CreateSchedule
+                  - scheduler:UpdateSchedule
+                  - scheduler:DeleteSchedule
+                  - scheduler:GetSchedule
+                  - scheduler:ListSchedules
+                Resource:
+                  - !Sub "arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/openclaw-cron/*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt CronSchedulerRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: scheduler.amazonaws.com
       Tags:
         - Key: Project
           Value: OpenClaw
@@ -562,10 +614,12 @@ Resources:
         BEDROCK_MODEL_ID: !Ref DefaultModelId
         SESSION_BACKUP_BUCKET: !Ref SessionBackupBucket
         DEPLOYMENT_VERSION: !Ref DeploymentVersion
-        OPENCLAW_AUTH_TOKEN: "openclaw-static-token-12345"
-        GOG_ACCOUNT: "lobinhaclowdia@gmail.com"
-        GOG_KEYRING_PASSWORD: "openclaw-gog-keyring-2024"
-        TAVILY_API_KEY: "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"
+        OPENCLAW_AUTH_TOKEN: !Ref OpenClawAuthToken
+        GOG_ACCOUNT: !Ref GogAccount
+        GOG_KEYRING_PASSWORD: !Ref GogKeyringPassword
+        TAVILY_API_KEY: !Ref TavilyApiKey
+        CRON_MODEL_ID: !Ref CronModelId
+        CRON_SCHEDULER_ROLE_ARN: !GetAtt CronSchedulerRole.Arn
       Tags:
         Project: OpenClaw
         Environment: Personal
@@ -620,6 +674,47 @@ Resources:
           Subscribers:
             - SubscriptionType: SNS
               Address: !Ref BudgetAlertTopic
+
+  # EventBridge Scheduler Group for OpenClaw cron jobs
+  CronSchedulerGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: openclaw-cron
+      Tags:
+        - Key: Project
+          Value: OpenClaw
+        - Key: Environment
+          Value: Personal
+
+  # IAM Role for EventBridge Scheduler to invoke AgentCore Runtime
+  CronSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-cron-scheduler-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: InvokeAgentCoreRuntime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                Resource: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*"
+      Tags:
+        - Key: Project
+          Value: OpenClaw
+        - Key: Environment
+          Value: Personal
 
   # CloudWatch Alarm for Estimated Charges
   CostAlarm:
@@ -699,3 +794,15 @@ Outputs:
     Value: !Sub "/aws/ec2/discord-bot/${AWS::StackName}"
     Export:
       Name: !Sub "${AWS::StackName}-DiscordBotLogGroup"
+
+  CronSchedulerRoleArn:
+    Description: "IAM Role ARN for EventBridge Scheduler (cron jobs)"
+    Value: !GetAtt CronSchedulerRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CronSchedulerRoleArn"
+
+  CronSchedulerGroupName:
+    Description: "EventBridge Scheduler Group for OpenClaw cron jobs"
+    Value: !Ref CronSchedulerGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-CronSchedulerGroupName"

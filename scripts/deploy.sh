@@ -145,6 +145,23 @@ echo "   Deployment Version: $CURRENT_VERSION → $DEPLOYMENT_VERSION"
 
 DEPLOY_PARAMS="AdminEmail=$ADMIN_EMAIL MonthlyBudgetLimit=$MONTHLY_BUDGET DefaultModelId=$DEFAULT_MODEL DeploymentVersion=$DEPLOYMENT_VERSION"
 
+# Pass secrets/config from .env as CloudFormation parameters
+if [ -n "$OPENCLAW_AUTH_TOKEN" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS OpenClawAuthToken=$OPENCLAW_AUTH_TOKEN"
+fi
+if [ -n "$GOG_ACCOUNT" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS GogAccount=$GOG_ACCOUNT"
+fi
+if [ -n "$GOG_KEYRING_PASSWORD" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS GogKeyringPassword=$GOG_KEYRING_PASSWORD"
+fi
+if [ -n "$TAVILY_API_KEY" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS TavilyApiKey=$TAVILY_API_KEY"
+fi
+if [ -n "$CRON_MODEL_ID" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS CronModelId=$CRON_MODEL_ID"
+fi
+
 if [ -n "$DISCORD_BOT_TOKEN" ]; then
     echo "   Including Discord bot configuration..."
     DEPLOY_PARAMS="$DEPLOY_PARAMS DiscordBotToken=$DISCORD_BOT_TOKEN EnableDiscordBot=true"

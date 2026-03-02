@@ -415,6 +415,187 @@ def sync_system_crontab_to_s3() -> None:
         logger.error(f"Failed to back up system crontab: {e}")
 
 
+# ---------------------------------------------------------------------------
+# EventBridge Scheduler helpers — create/delete schedules that wake AgentCore
+# at the right time to execute cron jobs reliably.
+# ---------------------------------------------------------------------------
+
+def _sanitize_schedule_name(name: str) -> str:
+    """Convert a cron job name to a valid EventBridge schedule name."""
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "-", name)
+    prefix = "openclaw-cron-"
+    # EventBridge schedule names max 64 chars
+    return (prefix + sanitized)[:64]
+
+
+def _cron_to_eventbridge(cron_expr: str) -> str:
+    """Convert a standard 5-field cron expression to EventBridge schedule expression.
+    
+    Standard cron: minute hour day-of-month month day-of-week
+    EventBridge:   cron(minute hour day-of-month month day-of-week year)
+    """
+    parts = cron_expr.strip().split()
+    if len(parts) == 5:
+        # Add wildcard year and convert day-of-week: standard uses 0=Sun,
+        # EventBridge uses SUN-SAT or 1=SUN. We pass through as-is since
+        # both accept * and numeric values similarly for basic expressions.
+        # Replace '?' if needed — EventBridge requires '?' in either
+        # day-of-month or day-of-week when the other is specified.
+        dom, dow = parts[2], parts[4]
+        if dom != "*" and dow != "*":
+            # Both specified — EventBridge doesn't allow this, prefer day-of-month
+            parts[4] = "?"
+        elif dom == "*" and dow == "*":
+            # Neither specifically set — use ? for day-of-week
+            parts[4] = "?"
+        elif dom != "*":
+            parts[4] = "?"
+        else:
+            parts[2] = "?"
+        return f"cron({parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[4]} *)"
+    elif len(parts) == 6:
+        # Already has year field
+        return f"cron({cron_expr})"
+    else:
+        logger.warning(f"Unexpected cron format ({len(parts)} fields): {cron_expr}")
+        return f"cron({cron_expr})"
+
+
+_cached_runtime_arn: str | None = None
+
+
+def _discover_runtime_arn() -> str:
+    """Discover our own AgentCore runtime ARN.
+    
+    Since CloudFormation can't self-reference the runtime resource in its
+    own environment variables, we find it by listing runtimes and matching
+    on the name pattern. Result is cached for the container's lifetime.
+    """
+    global _cached_runtime_arn
+    if _cached_runtime_arn:
+        return _cached_runtime_arn
+    
+    try:
+        client = boto3.client("bedrock-agentcore")
+        paginator = client.get_paginator("list_agent_runtimes")
+        for page in paginator.paginate():
+            for runtime in page.get("agentRuntimeSummaries", []):
+                name = runtime.get("agentRuntimeName", "")
+                if "openclawpersonal" in name.lower().replace("-", "").replace("_", ""):
+                    _cached_runtime_arn = runtime["agentRuntimeArn"]
+                    logger.info(f"Discovered runtime ARN: {_cached_runtime_arn}")
+                    return _cached_runtime_arn
+        logger.warning("Could not find openclaw runtime in account")
+        return ""
+    except Exception as e:
+        logger.error(f"Failed to discover runtime ARN: {e}")
+        return ""
+
+
+def _create_eventbridge_schedule(
+    job_name: str,
+    cron_expr: str,
+    cron_message: str,
+    tz: str = "UTC",
+) -> bool:
+    """Create an EventBridge Scheduler schedule that invokes AgentCore runtime."""
+    schedule_name = _sanitize_schedule_name(job_name)
+    scheduler_role_arn = os.environ.get("CRON_SCHEDULER_ROLE_ARN", "")
+    
+    # Discover the runtime ARN — we can't inject it as an env var because
+    # CloudFormation can't self-reference the AgentCoreRuntime resource.
+    # Instead, we query the bedrock-agentcore API to find our runtime.
+    runtime_arn = _discover_runtime_arn()
+    
+    if not runtime_arn or not scheduler_role_arn:
+        logger.warning(
+            "EventBridge cron scheduling skipped: "
+            f"runtime_arn={'set' if runtime_arn else 'missing'}, "
+            f"CRON_SCHEDULER_ROLE_ARN={'set' if scheduler_role_arn else 'missing'}"
+        )
+        return False
+    
+    try:
+        scheduler = boto3.client("scheduler")
+        schedule_expr = _cron_to_eventbridge(cron_expr)
+        
+        payload = json.dumps({
+            "action": "run-cron-job",
+            "name": job_name,
+            "cron_message": cron_message,
+        })
+        
+        scheduler.create_schedule(
+            Name=schedule_name,
+            GroupName="openclaw-cron",
+            ScheduleExpression=schedule_expr,
+            ScheduleExpressionTimezone=tz,
+            FlexibleTimeWindow={"Mode": "OFF"},
+            Target={
+                "Arn": runtime_arn,
+                "RoleArn": scheduler_role_arn,
+                "Input": payload,
+            },
+            State="ENABLED",
+            Description=f"OpenClaw cron: {job_name}",
+        )
+        logger.info(
+            f"Created EventBridge schedule '{schedule_name}' "
+            f"({schedule_expr}, tz={tz})"
+        )
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConflictException":
+            # Schedule already exists — update it
+            try:
+                scheduler.update_schedule(
+                    Name=schedule_name,
+                    GroupName="openclaw-cron",
+                    ScheduleExpression=schedule_expr,
+                    ScheduleExpressionTimezone=tz,
+                    FlexibleTimeWindow={"Mode": "OFF"},
+                    Target={
+                        "Arn": runtime_arn,
+                        "RoleArn": scheduler_role_arn,
+                        "Input": payload,
+                    },
+                    State="ENABLED",
+                    Description=f"OpenClaw cron: {job_name}",
+                )
+                logger.info(f"Updated existing EventBridge schedule '{schedule_name}'")
+                return True
+            except Exception as ue:
+                logger.error(f"Failed to update EventBridge schedule: {ue}")
+                return False
+        logger.error(f"Failed to create EventBridge schedule: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"EventBridge schedule creation error: {e}", exc_info=True)
+        return False
+
+
+def _delete_eventbridge_schedule(job_id: str) -> bool:
+    """Delete an EventBridge Scheduler schedule for a cron job."""
+    schedule_name = _sanitize_schedule_name(job_id)
+    try:
+        scheduler = boto3.client("scheduler")
+        scheduler.delete_schedule(
+            Name=schedule_name,
+            GroupName="openclaw-cron",
+        )
+        logger.info(f"Deleted EventBridge schedule '{schedule_name}'")
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            logger.info(f"EventBridge schedule '{schedule_name}' not found (already deleted)")
+            return True
+        logger.error(f"Failed to delete EventBridge schedule: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"EventBridge schedule deletion error: {e}", exc_info=True)
+        return False
+
+
 def sync_sessions_to_s3() -> None:
     """Sync openclaw state (sessions + workspace + cron) to S3.
     Uploads session files, workspace files (memory, identity, etc.),
@@ -846,6 +1027,188 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 diag["cron_daemon"] = f"error: {e}"
             self._respond(200, diag)
+            return
+        
+        # Cron management actions — openclaw cron runs inside the gateway,
+        # not accessible via chat completions API, so we expose CLI wrappers.
+        if payload.get("action") == "cron-list":
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "list"],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-status":
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "status"],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-add":
+            # Expects: name, cron, message, and optionally tz, session, announce
+            cron_args = ["openclaw", "cron", "add"]
+            name = payload.get("name")
+            cron_expr = payload.get("cron")
+            msg = payload.get("cron_message")  # 'message' is already used for chat
+            tz = payload.get("tz")
+            session_mode = payload.get("session", "isolated")
+            announce = payload.get("announce", True)
+            
+            if not name or not msg:
+                self._respond(400, {"error": "name and cron_message are required"})
+                return
+            
+            cron_args.extend(["--name", name])
+            if cron_expr:
+                cron_args.extend(["--cron", cron_expr])
+            cron_args.extend(["--session", session_mode])
+            cron_args.extend(["--message", msg])
+            if tz:
+                cron_args.extend(["--tz", tz])
+            if announce:
+                cron_args.append("--announce")
+            
+            try:
+                logger.info(f"Creating cron job: {' '.join(cron_args)}")
+                result = subprocess.run(
+                    cron_args,
+                    capture_output=True, text=True, timeout=30,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                    input="\n",  # Auto-confirm any prompts
+                )
+                logger.info(f"Cron add result: exit={result.returncode}, stdout={result.stdout[:500]}, stderr={result.stderr[:500]}")
+                
+                # Also create an EventBridge schedule for reliable execution
+                eb_created = False
+                if result.returncode == 0 and cron_expr:
+                    eb_created = _create_eventbridge_schedule(
+                        job_name=name,
+                        cron_expr=cron_expr,
+                        cron_message=msg,
+                        tz=tz or "UTC",
+                    )
+                
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                    "eventbridge_schedule": "created" if eb_created else "skipped",
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        if payload.get("action") == "cron-remove":
+            job_id = payload.get("job_id")
+            if not job_id:
+                self._respond(400, {"error": "job_id is required"})
+                return
+            try:
+                result = subprocess.run(
+                    ["openclaw", "cron", "rm", job_id],
+                    capture_output=True, text=True, timeout=15,
+                    env={**os.environ, "OPENCLAW_CONFIG_PATH": "/root/.openclaw/openclaw.json"},
+                )
+                # Also remove the matching EventBridge schedule
+                _delete_eventbridge_schedule(job_id)
+                self._respond(200, {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode,
+                })
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        
+        # EventBridge-triggered cron job execution — this is the core of
+        # reliable cron on AgentCore. EventBridge wakes the container at
+        # the scheduled time and sends the job details in the payload.
+        if payload.get("action") == "run-cron-job":
+            job_name = payload.get("name", "unknown")
+            cron_message = payload.get("cron_message", "")
+            if not cron_message:
+                self._respond(400, {"error": "cron_message is required"})
+                return
+            
+            # Force cron jobs to use the cost-effective default model
+            cron_model = os.environ.get("CRON_MODEL_ID", DEFAULT_MODEL)
+            logger.info(
+                f"Executing cron job '{job_name}' via EventBridge, "
+                f"model={cron_model}, message_length={len(cron_message)}"
+            )
+            
+            start_ms = int(time.time() * 1000)
+            try:
+                resp = requests.post(
+                    f"{OPENCLAW_URL}/v1/chat/completions",
+                    json={
+                        "model": cron_model,
+                        "messages": [{"role": "user", "content": cron_message}],
+                        "user": "cron:eventbridge",
+                    },
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {OPENCLAW_AUTH_TOKEN}",
+                    },
+                    timeout=300,
+                )
+                duration_ms = int(time.time() * 1000) - start_ms
+                
+                if resp.status_code != 200:
+                    logger.error(
+                        f"Cron job '{job_name}' failed: status={resp.status_code}, "
+                        f"body={resp.text[:500]}"
+                    )
+                    self._respond(resp.status_code, {
+                        "error": f"Cron execution failed: {resp.text[:200]}",
+                        "job_name": job_name,
+                    })
+                    return
+                
+                result = resp.json()
+                result["metadata"] = {
+                    "job_name": job_name,
+                    "model_used": cron_model,
+                    "channel": "cron:eventbridge",
+                    "duration_ms": duration_ms,
+                    "trigger": "eventbridge",
+                }
+                logger.info(
+                    f"Cron job '{job_name}' completed: duration={duration_ms}ms"
+                )
+                self._respond(200, result)
+                
+                # Sync after cron execution
+                sync_sessions_async()
+            except Exception as e:
+                duration_ms = int(time.time() * 1000) - start_ms
+                logger.error(
+                    f"Cron job '{job_name}' error: {e}, duration={duration_ms}ms"
+                )
+                self._respond(500, {
+                    "error": str(e),
+                    "job_name": job_name,
+                    "duration_ms": duration_ms,
+                })
             return
         
         # Select model based on channel
