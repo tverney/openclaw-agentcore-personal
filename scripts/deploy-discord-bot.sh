@@ -9,7 +9,7 @@ echo ""
 # Configuration
 AWS_PROFILE="${AWS_PROFILE:-personal}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
-INSTANCE_ID="${INSTANCE_ID:-i-0bb87d247a92713e4}"
+INSTANCE_ID="${INSTANCE_ID:-i-05e0fc6bc5727259b}"
 STACK_NAME="openclaw-personal"
 
 export AWS_PROFILE=$AWS_PROFILE

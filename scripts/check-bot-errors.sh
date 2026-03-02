@@ -5,7 +5,7 @@ set -e
 
 AWS_PROFILE="${AWS_PROFILE:-personal}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
-INSTANCE_ID="${INSTANCE_ID:-i-0bb87d247a92713e4}"
+INSTANCE_ID="${INSTANCE_ID:-i-05e0fc6bc5727259b}"
 
 export AWS_PROFILE=$AWS_PROFILE
 
@@ -16,11 +16,11 @@ echo "Instance: $INSTANCE_ID"
 echo "Region: $AWS_REGION"
 echo ""
 
-# Get recent error logs
+# Get recent error logs via journalctl (bot runs as systemd service)
 COMMAND_ID=$(aws ssm send-command \
   --instance-ids $INSTANCE_ID \
   --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["pm2 logs openclaw-discord --nostream --lines 100 | grep -A 15 -B 5 -i \"error\\|exception\\|failed\\|500\\|502\" || echo \"No errors found in recent logs\""]' \
+  --parameters 'commands=["journalctl -u discord-bot --no-pager -n 100 | grep -A 5 -B 2 -i \"error\\|exception\\|failed\\|500\\|502\\|RuntimeClientError\" || echo \"No errors found in recent logs\""]' \
   --region $AWS_REGION \
   --query 'Command.CommandId' \
   --output text)
@@ -40,4 +40,4 @@ echo "✅ Done"
 echo ""
 echo "💡 Tip: To see all logs, run:"
 echo "   aws ssm start-session --target $INSTANCE_ID --profile $AWS_PROFILE --region $AWS_REGION"
-echo "   Then: pm2 logs openclaw-discord"
+echo "   Then: journalctl -u discord-bot -f"

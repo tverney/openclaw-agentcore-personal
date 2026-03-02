@@ -17,7 +17,7 @@ Parameters:
   
   DefaultModelId:
     Type: String
-    Default: "us.amazon.nova-lite-v1:0"
+    Default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
     Description: "Default Bedrock inference profile ID (must include region prefix: us., eu., or global.)"
     AllowedPattern: '^(us\.|eu\.|global\.).*'
     ConstraintDescription: "Must be a valid inference profile ID with region prefix"
@@ -41,6 +41,11 @@ Parameters:
     Default: "10"
     Description: "Internal version number to force instance replacement on config changes"
   
+  DeploymentVersion:
+    Type: String
+    Default: "58"
+    Description: "Increment this value to force AgentCore runtime to redeploy with the latest container image"
+
   DiscordBotKeyPair:
     Type: String
     Default: ""
@@ -523,7 +528,8 @@ Resources:
         AWS_REGION: !Ref AWS::Region
         BEDROCK_MODEL_ID: !Ref DefaultModelId
         SESSION_BACKUP_BUCKET: !Ref SessionBackupBucket
-        DEPLOYMENT_VERSION: "45"
+        DEPLOYMENT_VERSION: !Ref DeploymentVersion
+        OPENCLAW_AUTH_TOKEN: "openclaw-static-token-12345"
       Tags:
         Project: OpenClaw
         Environment: Personal
