@@ -43,7 +43,7 @@ Parameters:
   
   DeploymentVersion:
     Type: String
-    Default: "61"
+    Default: "62"
     Description: "Increment this value to force AgentCore runtime to redeploy with the latest container image"
 
   DiscordBotKeyPair:
