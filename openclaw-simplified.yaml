@@ -497,6 +497,86 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "aws:kms"
+              KMSMasterKeyID: !GetAtt OpenClawKmsKey.Arn
+            BucketKeyEnabled: true
+      Tags:
+        - Key: Project
+          Value: OpenClaw
+        - Key: Environment
+          Value: Personal
+
+  # S3 Bucket Policy — restrict access to AgentCore role and deploy user only
+  SessionBackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SessionBackupBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyUnauthorizedAccess
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt SessionBackupBucket.Arn
+              - !Sub "${SessionBackupBucket.Arn}/*"
+            Condition:
+              StringNotLike:
+                aws:PrincipalArn:
+                  - !GetAtt AgentCoreExecutionRole.Arn
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !If
+                    - CreateDiscordBot
+                    - !GetAtt DiscordBotRole.Arn
+                    - !Ref AWS::NoValue
+
+  # KMS Customer-Managed Key for S3 encryption
+  # NOTE: AgentCore role gets KMS access via its IAM policy (KmsAccess),
+  # not via the key policy. This avoids a circular dependency between
+  # the role and the key (role → key ARN in policy, key → role ARN in key policy).
+  OpenClawKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "OpenClaw S3 and Secrets Manager encryption key"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RootAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+      Tags:
+        - Key: Project
+          Value: OpenClaw
+        - Key: Environment
+          Value: Personal
+
+  OpenClawKmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}-key"
+      TargetKeyId: !GetAtt OpenClawKmsKey.Arn
+
+  # Secrets Manager — store sensitive credentials
+  OpenClawSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}/credentials"
+      Description: "OpenClaw sensitive credentials (auth tokens, API keys)"
+      KmsKeyId: !GetAtt OpenClawKmsKey.Arn
+      SecretString: !Sub |
+        {
+          "OPENCLAW_AUTH_TOKEN": "${OpenClawAuthToken}",
+          "TAVILY_API_KEY": "${TavilyApiKey}",
+          "GOG_KEYRING_PASSWORD": "${GogKeyringPassword}"
+        }
       Tags:
         - Key: Project
           Value: OpenClaw
@@ -588,6 +668,24 @@ Resources:
                 Condition:
                   StringEquals:
                     iam:PassedToService: scheduler.amazonaws.com
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref OpenClawSecrets
+        - PolicyName: KmsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                  - kms:DescribeKey
+                Resource: !GetAtt OpenClawKmsKey.Arn
       Tags:
         - Key: Project
           Value: OpenClaw
@@ -614,13 +712,11 @@ Resources:
         BEDROCK_MODEL_ID: !Ref DefaultModelId
         SESSION_BACKUP_BUCKET: !Ref SessionBackupBucket
         DEPLOYMENT_VERSION: !Ref DeploymentVersion
-        OPENCLAW_AUTH_TOKEN: !Ref OpenClawAuthToken
         GOG_ACCOUNT: !Ref GogAccount
-        GOG_KEYRING_PASSWORD: !Ref GogKeyringPassword
-        TAVILY_API_KEY: !Ref TavilyApiKey
         CRON_MODEL_ID: !Ref CronModelId
         CRON_SCHEDULER_ROLE_ARN: !GetAtt CronSchedulerRole.Arn
         CRON_INVOKER_FUNCTION_ARN: !GetAtt CronInvokerFunction.Arn
+        SECRETS_ARN: !Ref OpenClawSecrets
       Tags:
         Project: OpenClaw
         Environment: Personal
@@ -889,3 +985,15 @@ Outputs:
     Value: !Ref CronSchedulerGroup
     Export:
       Name: !Sub "${AWS::StackName}-CronSchedulerGroupName"
+
+  SecretsManagerArn:
+    Description: "Secrets Manager ARN for OpenClaw credentials"
+    Value: !Ref OpenClawSecrets
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretsManagerArn"
+
+  KmsKeyArn:
+    Description: "KMS key ARN for encryption"
+    Value: !GetAtt OpenClawKmsKey.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KmsKeyArn"

@@ -331,6 +331,45 @@ def restore_gog_credentials_from_s3() -> None:
         logger.error(f"Failed to restore GOG credentials: {e}", exc_info=True)
 
 
+def load_secrets_from_secrets_manager() -> None:
+    """Fetch secrets from AWS Secrets Manager and set them as environment variables.
+
+    Reads SECRETS_ARN from the environment (injected by CloudFormation),
+    retrieves the JSON secret, and sets OPENCLAW_AUTH_TOKEN, TAVILY_API_KEY,
+    and GOG_KEYRING_PASSWORD as env vars so the rest of the container can
+    use them transparently.
+
+    Falls back gracefully if SECRETS_ARN is not set (local dev) or if the
+    call fails (permissions, network).
+    """
+    secrets_arn = os.environ.get("SECRETS_ARN")
+    if not secrets_arn:
+        logger.info("SECRETS_ARN not set — using env vars directly (local dev mode)")
+        return
+
+    try:
+        client = boto3.client(
+            "secretsmanager",
+            region_name=os.environ.get("AWS_REGION", "us-east-2"),
+        )
+        response = client.get_secret_value(SecretId=secrets_arn)
+        secret = json.loads(response["SecretString"])
+
+        loaded = []
+        for key in ("OPENCLAW_AUTH_TOKEN", "TAVILY_API_KEY", "GOG_KEYRING_PASSWORD"):
+            value = secret.get(key)
+            if value:
+                os.environ[key] = value
+                loaded.append(key)
+
+        logger.info(f"Loaded {len(loaded)} secrets from Secrets Manager: {loaded}")
+    except ClientError as e:
+        logger.error(f"Failed to fetch secrets from Secrets Manager: {e}")
+        logger.warning("Falling back to environment variables (may be empty)")
+    except Exception as e:
+        logger.error(f"Unexpected error loading secrets: {e}", exc_info=True)
+
+
 ALEXA_CONFIG_DIR = "/root/.alexa-cli"
 ALEXA_S3_PREFIX = "alexa-credentials/"
 
@@ -1491,6 +1530,14 @@ def main():
     os.makedirs(WORKSPACE_DIR, exist_ok=True)
     os.makedirs(CRON_DIR, exist_ok=True)
     os.makedirs(OPENCLAW_DIR, exist_ok=True)
+    
+    # Load secrets from Secrets Manager (must happen before start_openclaw
+    # so OPENCLAW_AUTH_TOKEN and other secrets are available)
+    load_secrets_from_secrets_manager()
+    
+    # Update module-level OPENCLAW_AUTH_TOKEN after secrets are loaded
+    global OPENCLAW_AUTH_TOKEN
+    OPENCLAW_AUTH_TOKEN = os.environ.get("OPENCLAW_AUTH_TOKEN", OPENCLAW_AUTH_TOKEN)
     
     # Start cron daemon — openclaw's cron feature uses system crontab.
     # In Debian slim containers, cron needs explicit foreground start and
