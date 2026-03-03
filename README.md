@@ -2,6 +2,8 @@
 
 > Cost-optimized [OpenClaw](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock) deployment using AWS Bedrock AgentCore Runtime, with Discord bot integration.
 
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=openclaw-personal&templateURL=https://raw.githubusercontent.com/tverney/openclaw-personal-agentcore/main/openclaw-simplified.yaml)
+
 ## What Is This?
 
 A single-user, serverless deployment of OpenClaw on AWS. Instead of running an EC2 instance 24/7, the AI runs on-demand via AgentCore Runtime — you only pay when you use it.
