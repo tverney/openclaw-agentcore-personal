@@ -66,9 +66,8 @@ yarn-error.log*
 *.pem
 *.key
 
-# Skills config state (contains API keys)
-.openclaw-skills-state.json
-agent-container/.openclaw-skills-state.json
+# Community skills manifest (personal config, not committed)
+agent-container/community-skills.json
 
 # Built binaries
 agent-container/gog

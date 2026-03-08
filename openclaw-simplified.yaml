@@ -817,6 +817,8 @@ Resources:
   # EventBridge Scheduler Group for OpenClaw cron jobs
   CronSchedulerGroup:
     Type: AWS::Scheduler::ScheduleGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Name: openclaw-cron
       Tags:
