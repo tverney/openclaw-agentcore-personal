@@ -642,6 +642,7 @@ Resources:
                 Action:
                   - aws-marketplace:ViewSubscriptions
                   - aws-marketplace:Subscribe
+                  - aws-marketplace:Unsubscribe
                 Resource: "*"
               - Effect: Allow
                 Action:
