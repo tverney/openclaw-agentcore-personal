@@ -17,7 +17,7 @@ Parameters:
   
   DefaultModelId:
     Type: String
-    Default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     Description: "Default Bedrock inference profile ID (must include region prefix: us., eu., or global.)"
     AllowedPattern: '^(us\.|eu\.|global\.).*'
     ConstraintDescription: "Must be a valid inference profile ID with region prefix"
@@ -76,7 +76,7 @@ Parameters:
 
   CronModelId:
     Type: String
-    Default: "us.anthropic.claude-3-5-haiku-20241022-v1:0"
+    Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     Description: "Bedrock model ID used for scheduled cron job execution"
 
 Conditions:
@@ -635,6 +635,14 @@ Resources:
                   - bedrock:InvokeModelWithResponseStream
                   - bedrock:Converse
                   - bedrock:ConverseStream
+                  - bedrock:GetInferenceProfile
+                  - bedrock:ListInferenceProfiles
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - aws-marketplace:ViewSubscriptions
+                  - aws-marketplace:Subscribe
+                  - aws-marketplace:Unsubscribe
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -765,6 +773,27 @@ Resources:
         - Key: Environment
           Value: Personal
 
+  BudgetAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref BudgetAlertTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowBudgetsPublish
+            Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref BudgetAlertTopic
+          - Sid: AllowCloudWatchPublish
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref BudgetAlertTopic
+
   # AWS Budget
   MonthlyBudget:
     Type: AWS::Budgets::Budget
@@ -780,7 +809,7 @@ Resources:
         CostFilters:
           Service:
             - Amazon Bedrock AgentCore
-            - "Claude 3.5 Haiku (Amazon Bedrock Edition)"
+            - "Claude Haiku 4.5 (Amazon Bedrock Edition)"
             - "Claude Sonnet 4 (Amazon Bedrock Edition)"
             - Amazon Elastic Compute Cloud - Compute
             - Amazon EC2 Container Registry (ECR)
