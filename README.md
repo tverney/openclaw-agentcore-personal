@@ -12,13 +12,15 @@ An optional Discord bot (Python, on a tiny EC2 t4g.nano) lets you chat with the 
 
 ## Cost Comparison
 
-| | Original EC2 Deployment | This AgentCore Deployment |
-|---|---|---|
-| Compute | EC2 running 24/7 (~$35/mo) | Serverless, pay-per-use |
-| Complexity | Multi-tenant, VPC required | Single-user, minimal infra |
-| Typical cost | ~$80/month | ~$9-15/month* |
+| | Original EC2 Deployment | Lightsail Deployment | This AgentCore Deployment |
+|---|---|---|---|
+| Compute | EC2 running 24/7 (~$35/mo) | Lightsail 4GB plan ($24/mo) | Serverless, pay-per-use |
+| Complexity | Multi-tenant, VPC required | Pre-configured, simple | Single-user, minimal infra |
+| Scaling | Manual | Fixed instance | Auto-freezes when idle |
+| Typical cost | ~$80/month | ~$24/month* | ~$9-15/month** |
 
-*\~$4 EC2 nano (Discord bot) + \~$3.60 public IPv4 + \~$1 KMS + pennies for ECR/S3/Secrets Manager/CloudWatch. Model token costs are additional and vary by usage.*
+*\*Lightsail cost excludes model tokens (Bedrock usage billed separately).*
+*\*\*~$4 EC2 nano (Discord bot) + \~$3.60 public IPv4 + \~$1 KMS + pennies for ECR/S3/Secrets Manager/CloudWatch. Model token costs are additional and vary by usage.*
 
 ## Project Structure
 
