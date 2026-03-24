@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""OpenClaw Discord Bot — threads + conversation history."""
+"""OpenClaw Discord Bot — threads, conversation history, and slash commands."""
 import asyncio, json, os, re, sys, logging
 import boto3
 from botocore.config import Config
 import discord
+from discord import app_commands
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-2")
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
+tree = app_commands.CommandTree(client)
 _processing = set()
 
 bedrock_client = boto3.client(
@@ -54,6 +56,75 @@ def invoke_runtime(message, channel="discord_general", history=None):
 async def on_ready():
     logger.info(f"Logged in as {client.user} (id={client.user.id})")
     logger.info(f"Guilds: {[g.name for g in client.guilds]}")
+    try:
+        synced = await tree.sync()
+        logger.info(f"Synced {len(synced)} slash commands")
+    except Exception as e:
+        logger.error(f"Failed to sync slash commands: {e}")
+
+async def _handle_slash(interaction: discord.Interaction, command: str):
+    """Shared handler for slash commands that forward to OpenClaw."""
+    await interaction.response.defer()
+    logger.info(f"Slash /{command} from {interaction.user}")
+    try:
+        ai_text = await asyncio.wait_for(
+            asyncio.to_thread(invoke_runtime, f"/{command}", "discord_general"),
+            timeout=120,
+        )
+        if len(ai_text) <= 2000:
+            await interaction.followup.send(ai_text)
+        else:
+            for i in range(0, len(ai_text), 2000):
+                await interaction.followup.send(ai_text[i:i+2000])
+    except asyncio.TimeoutError:
+        await interaction.followup.send("The AI took too long to respond. Try again?")
+    except Exception as e:
+        logger.error(f"Slash command error: {e}", exc_info=True)
+        await interaction.followup.send("Sorry, something went wrong.")
+
+@tree.command(name="status", description="Show OpenClaw model, tokens used, and cost")
+async def cmd_status(interaction: discord.Interaction):
+    await _handle_slash(interaction, "status")
+
+@tree.command(name="new", description="Start a fresh conversation")
+async def cmd_new(interaction: discord.Interaction):
+    await _handle_slash(interaction, "new")
+
+@tree.command(name="help", description="List all OpenClaw commands")
+async def cmd_help(interaction: discord.Interaction):
+    await _handle_slash(interaction, "help")
+
+@tree.command(name="think", description="Set reasoning mode (high/medium/low/off)")
+@app_commands.describe(level="Reasoning level")
+@app_commands.choices(level=[
+    app_commands.Choice(name="high", value="high"),
+    app_commands.Choice(name="medium", value="medium"),
+    app_commands.Choice(name="low", value="low"),
+    app_commands.Choice(name="off", value="off"),
+])
+async def cmd_think(interaction: discord.Interaction, level: app_commands.Choice[str]):
+    await _handle_slash(interaction, f"think {level.value}")
+
+@tree.command(name="ask", description="Ask OpenClaw anything")
+@app_commands.describe(message="Your message")
+async def cmd_ask(interaction: discord.Interaction, message: str):
+    await interaction.response.defer()
+    logger.info(f"Slash /ask from {interaction.user}: {message[:100]}")
+    try:
+        ai_text = await asyncio.wait_for(
+            asyncio.to_thread(invoke_runtime, message, "discord_general"),
+            timeout=120,
+        )
+        if len(ai_text) <= 2000:
+            await interaction.followup.send(ai_text)
+        else:
+            for i in range(0, len(ai_text), 2000):
+                await interaction.followup.send(ai_text[i:i+2000])
+    except asyncio.TimeoutError:
+        await interaction.followup.send("The AI took too long to respond. Try again?")
+    except Exception as e:
+        logger.error(f"Slash command error: {e}", exc_info=True)
+        await interaction.followup.send("Sorry, something went wrong.")
 
 @client.event
 async def on_message(message):
