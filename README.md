@@ -133,7 +133,7 @@ Or open the OpenClaw Web UI via SSM port forwarding to connect WhatsApp, Telegra
 
 ### 🎯 Deploy with Kiro AI
 
-Prefer a guided experience? [Kiro](https://kiro.dev) walks you through deployment conversationally — just open this repo as a workspace and say "help me deploy OpenClaw".
+Prefer a guided experience? [Kiro](https://kiro.dev) walks you through deployment conversationally — just open this repo as a workspace and say "help me deploy my personal OpenClaw".
 
 → [Kiro Deployment Guide](QUICK_START_KIRO.md)
 

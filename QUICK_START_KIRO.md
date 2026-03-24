@@ -23,7 +23,7 @@ Open the `openclaw-personal` folder as a workspace in Kiro (File → Open Folder
 
 In the Kiro chat panel, say:
 
-> "Help me deploy OpenClaw on AWS"
+> "Help me deploy my personal OpenClaw"
 
 ### Step 3: Answer a Few Questions
 
@@ -56,7 +56,7 @@ Kiro will:
 ## Example Conversation
 
 ```
-You: "Help me deploy OpenClaw"
+You: "Help me deploy my personal OpenClaw"
 
 Kiro: "Which AWS region? (default: us-east-2)"
 You: "default"
