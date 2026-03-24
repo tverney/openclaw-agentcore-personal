@@ -807,16 +807,8 @@ Resources:
         TimeUnit: MONTHLY
         BudgetType: COST
         CostFilters:
-          Service:
-            - Amazon Bedrock AgentCore
-            - "Claude Haiku 4.5 (Amazon Bedrock Edition)"
-            - "Claude Sonnet 4 (Amazon Bedrock Edition)"
-            - Amazon Elastic Compute Cloud - Compute
-            - Amazon EC2 Container Registry (ECR)
-            - AWS Key Management Service
-            - AWS Secrets Manager
-            - AmazonCloudWatch
-            - Amazon Simple Storage Service
+          TagKeyValue:
+            - "user:Project$OpenClaw"
       NotificationsWithSubscribers:
         - Notification:
             NotificationType: ACTUAL
