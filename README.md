@@ -16,7 +16,9 @@ An optional Discord bot (Python, on a tiny EC2 t4g.nano) lets you chat with the 
 |---|---|---|
 | Compute | EC2 running 24/7 (~$35/mo) | Serverless, pay-per-use |
 | Complexity | Multi-tenant, VPC required | Single-user, minimal infra |
-| Typical cost | ~$80/month | ~$6-13/month |
+| Typical cost | ~$80/month | ~$9-15/month* |
+
+*\~$4 EC2 nano (Discord bot) + \~$3.60 public IPv4 + \~$1 KMS + pennies for ECR/S3/Secrets Manager/CloudWatch. Model token costs are additional and vary by usage.*
 
 ## Project Structure
 
