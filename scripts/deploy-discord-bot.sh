@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Discord Bot Deployment Script for EC2
+# Discord Bot Deployment Script — pushes bot.py to EC2 via SSM
 echo "🤖 Deploying Discord Bot to EC2"
 echo "================================"
 echo ""
@@ -9,175 +9,95 @@ echo ""
 # Configuration
 AWS_PROFILE="${AWS_PROFILE:-personal}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
-INSTANCE_ID="${INSTANCE_ID:-i-05e0fc6bc5727259b}"
 STACK_NAME="openclaw-personal"
 
 export AWS_PROFILE=$AWS_PROFILE
 
+# Get Instance ID from CloudFormation
+echo "📋 Getting Discord bot instance..."
+INSTANCE_ID=$(aws ec2 describe-instances \
+    --region $AWS_REGION \
+    --filters "Name=tag:Name,Values=${STACK_NAME}-discord-bot" "Name=instance-state-name,Values=running" \
+    --query 'Reservations[0].Instances[0].InstanceId' \
+    --output text)
+
+if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+    echo "❌ Could not find running Discord bot instance"
+    exit 1
+fi
+echo "✅ Instance: $INSTANCE_ID"
+
 # Get Runtime ARN from CloudFormation
-echo "📋 Getting AgentCore Runtime ARN..."
 RUNTIME_ARN=$(aws cloudformation describe-stacks \
     --stack-name $STACK_NAME \
-    --profile $AWS_PROFILE \
     --region $AWS_REGION \
     --query 'Stacks[0].Outputs[?OutputKey==`AgentCoreRuntimeId`].OutputValue' \
     --output text)
-
-if [ -z "$RUNTIME_ARN" ]; then
-    echo "❌ Could not get Runtime ARN from stack $STACK_NAME"
-    exit 1
-fi
-
 echo "✅ Runtime ARN: $RUNTIME_ARN"
-echo ""
 
-# Load Discord token from .env
-if [ -f "agent-container/.env" ]; then
-    export $(grep -v '^#' agent-container/.env | grep DISCORD_BOT_TOKEN | xargs)
+# Load Discord token from Secrets Manager
+echo ""
+echo "🔑 Fetching Discord token from Secrets Manager..."
+DISCORD_BOT_TOKEN=$(aws secretsmanager get-secret-value \
+    --secret-id ${STACK_NAME}-secrets \
+    --region $AWS_REGION \
+    --query 'SecretString' --output text | python3 -c "import sys,json; print(json.load(sys.stdin).get('DISCORD_BOT_TOKEN',''))")
+
+if [ -z "$DISCORD_BOT_TOKEN" ]; then
+    echo "⚠️  Token not in Secrets Manager, trying .env..."
+    if [ -f "agent-container/.env" ]; then
+        export $(grep -v '^#' agent-container/.env | grep DISCORD_BOT_TOKEN | xargs)
+    fi
 fi
 
 if [ -z "$DISCORD_BOT_TOKEN" ]; then
-    echo "❌ DISCORD_BOT_TOKEN not found in agent-container/.env"
+    echo "❌ DISCORD_BOT_TOKEN not found"
     exit 1
 fi
-
 echo "✅ Discord token loaded"
+
+# Upload bot.py via SSM
 echo ""
+echo "📤 Uploading bot.py..."
+BOT_PY_B64=$(base64 < discord-bot/bot.py)
+REQ_B64=$(base64 < discord-bot/requirements.txt)
 
-# Create deployment package
-echo "📦 Creating deployment package..."
-cd discord-bot
-tar -czf ../discord-bot-deploy.tar.gz \
-    bot.js \
-    invoke_agentcore.py \
-    package.json \
-    .env.example \
-    README.md
-cd ..
-echo "✅ Package created"
-echo ""
-
-# Upload to EC2 via SSM
-echo "📤 Uploading to EC2..."
-aws ssm send-command \
-    --instance-ids $INSTANCE_ID \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=[
-        'sudo yum install -y nodejs npm python3-pip',
-        'pip3 install boto3',
-        'mkdir -p /home/ec2-user/discord-bot',
-        'cd /home/ec2-user',
-        'echo \"Waiting for file upload...\"'
-    ]" \
-    --profile $AWS_PROFILE \
-    --region $AWS_REGION \
-    --output text
-
-echo "⏳ Waiting for package manager installation..."
-sleep 10
-
-# Copy files using base64 encoding (workaround for SSM file transfer)
-echo "📋 Deploying bot files..."
 COMMAND_ID=$(aws ssm send-command \
     --instance-ids $INSTANCE_ID \
     --document-name "AWS-RunShellScript" \
     --parameters "commands=[
-        'cd /home/ec2-user/discord-bot',
-        'cat > .env << EOF
+        'mkdir -p /home/ec2-user/discord-bot',
+        'echo \"$BOT_PY_B64\" | base64 -d > /home/ec2-user/discord-bot/bot.py',
+        'echo \"$REQ_B64\" | base64 -d > /home/ec2-user/discord-bot/requirements.txt',
+        'cat > /home/ec2-user/discord-bot/.env << ENVEOF
 DISCORD_BOT_TOKEN=$DISCORD_BOT_TOKEN
 AGENTCORE_RUNTIME_ARN=$RUNTIME_ARN
 AWS_REGION=$AWS_REGION
-EOF',
-        'cat > package.json << EOF
-{
-  \"name\": \"openclaw-discord-bot\",
-  \"version\": \"1.0.0\",
-  \"description\": \"Discord bot for OpenClaw\",
-  \"main\": \"bot.js\",
-  \"scripts\": {
-    \"start\": \"node bot.js\"
-  },
-  \"dependencies\": {
-    \"discord.js\": \"^14.14.1\",
-    \"dotenv\": \"^16.4.1\"
-  }
-}
-EOF',
-        'npm install',
+ENVEOF',
+        'chmod 600 /home/ec2-user/discord-bot/.env',
         'chown -R ec2-user:ec2-user /home/ec2-user/discord-bot',
-        'echo \"Installation complete\"'
+        'pip3 install -q -r /home/ec2-user/discord-bot/requirements.txt',
+        'systemctl restart discord-bot',
+        'sleep 3',
+        'systemctl status discord-bot --no-pager -l'
     ]" \
-    --profile $AWS_PROFILE \
     --region $AWS_REGION \
     --query 'Command.CommandId' \
     --output text)
 
-echo "⏳ Installing dependencies..."
+echo "⏳ Deploying and restarting..."
 sleep 15
 
-# Copy bot.js and invoke_agentcore.py
-echo "📝 Copying bot code..."
-BOT_JS=$(cat discord-bot/bot.js | base64)
-INVOKE_PY=$(cat discord-bot/invoke_agentcore.py | base64)
-
-aws ssm send-command \
-    --instance-ids $INSTANCE_ID \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=[
-        'cd /home/ec2-user/discord-bot',
-        'echo \"$BOT_JS\" | base64 -d > bot.js',
-        'echo \"$INVOKE_PY\" | base64 -d > invoke_agentcore.py',
-        'chmod +x invoke_agentcore.py',
-        'chown -R ec2-user:ec2-user /home/ec2-user/discord-bot'
-    ]" \
-    --profile $AWS_PROFILE \
-    --region $AWS_REGION \
-    --output text
-
-sleep 5
-
-# Start the bot with PM2
-echo "🚀 Starting Discord bot..."
-START_CMD=$(aws ssm send-command \
-    --instance-ids $INSTANCE_ID \
-    --document-name "AWS-RunShellScript" \
-    --parameters "commands=[
-        'cd /home/ec2-user/discord-bot',
-        'sudo npm install -g pm2',
-        'pm2 delete discord-bot 2>/dev/null || true',
-        'pm2 start bot.js --name discord-bot',
-        'pm2 save',
-        'pm2 startup systemd -u ec2-user --hp /home/ec2-user',
-        'pm2 list'
-    ]" \
-    --profile $AWS_PROFILE \
-    --region $AWS_REGION \
-    --query 'Command.CommandId' \
-    --output text)
-
-echo "⏳ Starting bot..."
-sleep 10
-
-# Get status
+# Get result
 aws ssm get-command-invocation \
-    --command-id $START_CMD \
+    --command-id $COMMAND_ID \
     --instance-id $INSTANCE_ID \
-    --profile $AWS_PROFILE \
     --region $AWS_REGION \
     --query 'StandardOutputContent' \
-    --output text
+    --output text 2>/dev/null || echo "(waiting for output...)"
 
 echo ""
 echo "✅ Discord bot deployed!"
 echo ""
-echo "📊 Check status:"
-echo "  aws ssm start-session --target $INSTANCE_ID --profile $AWS_PROFILE --region $AWS_REGION"
-echo "  Then run: pm2 status"
-echo ""
-echo "📝 View logs:"
-echo "  pm2 logs discord-bot"
-echo ""
-
-# Cleanup
-rm -f discord-bot-deploy.tar.gz
-
+echo "📊 Check logs:"
+echo "  aws ssm send-command --instance-ids $INSTANCE_ID --document-name AWS-RunShellScript --parameters 'commands=[\"journalctl -u discord-bot -n 30 --no-pager\"]' --region $AWS_REGION"
