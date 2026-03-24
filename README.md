@@ -39,6 +39,13 @@ An optional Discord bot (Python, on a tiny EC2 t4g.nano) lets you chat with the 
 └── docs/                       # Documentation
 ```
 
+## Prerequisites
+
+- AWS CLI configured with your account (`aws configure`)
+- Docker running locally (used to build the AgentCore container image)
+- Go 1.21+ (for cross-compiling the Alexa CLI and GOG CLI binaries)
+- A Discord bot token (optional — only if using the Discord integration)
+
 ## Quick Start
 
 ### 1. Configure
@@ -57,7 +64,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     AdminEmail=your-email@example.com \
     MonthlyBudgetLimit=15 \
-    DefaultModelId=us.anthropic.claude-3-5-haiku-20241022-v1:0 \
+    DefaultModelId=us.anthropic.claude-haiku-4-5-20251001-v1:0 \
     EnableDiscordBot=true \
     DiscordBotToken=YOUR_TOKEN \
   --capabilities CAPABILITY_NAMED_IAM \
