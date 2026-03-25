@@ -209,10 +209,10 @@ aws ssm send-command --instance-ids YOUR_INSTANCE_ID \
 ## FAQ
 
 **How much does it cost to run OpenClaw on AWS?**
-Infrastructure costs ~$9-15/month: a t4g.nano EC2 for the Discord bot (~$4), public IPv4 (~$3.60), KMS (~$1), and pennies for ECR/S3/Secrets Manager. Model token costs are additional and depend on usage — typically $5-15/month for personal use with Haiku 4.5.
+Infrastructure costs ~$9-15/month: a t4g.nano EC2 for the Discord bot ($4), public IPv4 ($3.60), KMS ($1), and pennies for ECR/S3/Secrets Manager. Model token costs are additional and depend on usage — typically $5-15/month for personal use with Haiku 4.5.
 
 **What's the cheapest way to host OpenClaw?**
-This AgentCore setup is one of the cheapest at ~$9/mo infra. If you use Telegram or WhatsApp instead of Discord (webhook-based, no EC2 needed), infra drops to ~$1-2/mo. Lightsail is $24/mo flat. A full EC2 deployment runs $35-80/mo.
+This AgentCore setup is one of the cheapest at ~$9/mo infra. If you use Telegram or WhatsApp instead of Discord (webhook-based, no EC2 needed), infra drops to $1-2/mo. Lightsail is $24/mo flat. A full EC2 deployment runs $35-80/mo.
 
 **Can I run OpenClaw without EC2?**
 Yes — the EC2 instance is only needed for the Discord bot (Discord requires a persistent WebSocket connection). If you use WhatsApp or Telegram (webhook-based), you can eliminate EC2 entirely and run fully serverless via API Gateway + Lambda + AgentCore.
