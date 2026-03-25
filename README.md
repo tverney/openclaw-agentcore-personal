@@ -1,5 +1,10 @@
 # AgentCore OpenClaw Personal Bot — Serverless AI Assistant on AWS
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![AWS CloudFormation](https://img.shields.io/badge/AWS-CloudFormation-orange?logo=amazonaws)](openclaw-simplified.yaml)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
+[![Built with Kiro](https://img.shields.io/badge/Built%20with-Kiro-blueviolet)](https://kiro.dev)
+
 > Cost-optimized [OpenClaw](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock) deployment using AWS Bedrock AgentCore Runtime. Connect via Discord, WhatsApp, Telegram, or Slack. ~$9-15/month infrastructure.
 
 [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=openclaw-personal&templateURL=https://raw.githubusercontent.com/tverney/openclaw-personal-agentcore/main/openclaw-simplified.yaml)
