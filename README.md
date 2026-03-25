@@ -1,4 +1,4 @@
-# Deploy Your Personal OpenClaw on AWS — Serverless, ~$9/month~$9/month
+# Deploy Your Personal OpenClaw on AWS AgentCore — Serverless, ~$9/month~$9/month
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AWS CloudFormation](https://img.shields.io/badge/AWS-CloudFormation-orange?logo=amazonaws)](openclaw-simplified.yaml)
