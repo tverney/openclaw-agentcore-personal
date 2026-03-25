@@ -1,4 +1,4 @@
-# AgentCore OpenClaw Personal Bot — Serverless AI Assistant on AWS
+# Deploy OpenClaw on AWS — Serverless, ~$9/month
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AWS CloudFormation](https://img.shields.io/badge/AWS-CloudFormation-orange?logo=amazonaws)](openclaw-simplified.yaml)
@@ -205,6 +205,29 @@ aws ssm send-command --instance-ids YOUR_INSTANCE_ID \
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Inference Profiles](docs/INFERENCE-PROFILES.md)
 - [Security](docs/SECURITY.md)
+
+## FAQ
+
+**How much does it cost to run OpenClaw on AWS?**
+Infrastructure costs ~$9-15/month: a t4g.nano EC2 for the Discord bot (~$4), public IPv4 (~$3.60), KMS (~$1), and pennies for ECR/S3/Secrets Manager. Model token costs are additional and depend on usage — typically $5-15/month for personal use with Haiku 4.5.
+
+**What's the cheapest way to host OpenClaw?**
+This AgentCore setup is one of the cheapest at ~$9/mo infra. If you use Telegram or WhatsApp instead of Discord (webhook-based, no EC2 needed), infra drops to ~$1-2/mo. Lightsail is $24/mo flat. A full EC2 deployment runs $35-80/mo.
+
+**Can I run OpenClaw without EC2?**
+Yes — the EC2 instance is only needed for the Discord bot (Discord requires a persistent WebSocket connection). If you use WhatsApp or Telegram (webhook-based), you can eliminate EC2 entirely and run fully serverless via API Gateway + Lambda + AgentCore.
+
+**How is this different from the Lightsail deployment?**
+Lightsail runs OpenClaw on an always-on VM ($24/mo). This stack uses AgentCore Runtime where the container freezes when idle — you only pay for compute during active use. For a personal assistant used a few times a day, that's significantly cheaper.
+
+**Does this work with models other than Claude?**
+Yes — switch models by changing one line in `.env`. Supports Claude Haiku 4.5, Claude Sonnet 4, Amazon Nova Lite, Nova Pro, DeepSeek R1, and any model available through Bedrock cross-region inference profiles.
+
+**Is my data secure?**
+All secrets are stored in AWS Secrets Manager with KMS encryption. S3 bucket access is restricted to the execution role. IAM roles follow least-privilege per component. No ports are exposed to the internet. See the [Security section](#security) for details.
+
+**How long does deployment take?**
+About 10 minutes. `bash scripts/deploy.sh` handles everything: template validation, Docker build, ECR push, CloudFormation deploy, and Discord bot setup.
 
 ## Resources
 
