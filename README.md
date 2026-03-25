@@ -1,11 +1,11 @@
-# Deploy Your Personal OpenClaw on AWS AgentCore — Serverless, $9/month
+# Deploy Your Personal OpenClaw on AWS AgentCore — Serverless, \~$9/month
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![AWS CloudFormation](https://img.shields.io/badge/AWS-CloudFormation-orange?logo=amazonaws)](openclaw-simplified.yaml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
 [![Built with Kiro](https://img.shields.io/badge/Built%20with-Kiro-blueviolet)](https://kiro.dev)
 
-> Cost-optimized [OpenClaw](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock) deployment using AWS Bedrock AgentCore Runtime. Connect via Discord, WhatsApp, Telegram, or Slack. ~$9-15/month infrastructure.
+> Cost-optimized [OpenClaw](https://github.com/aws-samples/sample-OpenClaw-on-AWS-with-Bedrock) deployment using AWS Bedrock AgentCore Runtime. Connect via Discord, WhatsApp, Telegram, or Slack. \~$9-15/month infrastructure.
 
 [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=openclaw-personal&templateURL=https://raw.githubusercontent.com/tverney/openclaw-personal-agentcore/main/openclaw-simplified.yaml)
 
@@ -45,7 +45,7 @@ You (receive response)
 ```
 
 - **AgentCore Runtime**: Runs OpenClaw in a managed container that freezes when idle
-- **EC2 nano**: Lightweight Discord bot relay (~512MB RAM, only needed for Discord)
+- **EC2 nano**: Lightweight Discord bot relay (\~512MB RAM, only needed for Discord)
 - **Bedrock**: Model inference via IAM — no API keys to manage
 - **EventBridge → Lambda**: External cron scheduler (container freezes make in-container cron unreliable)
 
@@ -53,15 +53,15 @@ You (receive response)
 
 | | Original EC2 Deployment | Lightsail Deployment | This AgentCore Deployment |
 |---|---|---|---|
-| Compute | EC2 running 24/7 (~$35/mo) | Lightsail 4GB plan ($24/mo) | Serverless, pay-per-use |
+| Compute | EC2 running 24/7 (\~$35/mo) | Lightsail 4GB plan ($24/mo) | Serverless, pay-per-use |
 | Complexity | Multi-tenant, VPC required | Pre-configured, simple | Single-user, minimal infra |
 | Scaling | Manual | Fixed instance | Auto-freezes when idle |
-| Typical cost | ~$80/month | ~$24/month* | ~$9-15/month** |
+| Typical cost | \~$80/month | \~$24/month* | \~$9-15/month** |
 
 *\*Lightsail cost excludes model tokens (Bedrock usage billed separately).*
-*\*\*~$4 EC2 nano (Discord bot) + \~$3.60 public IPv4 + \~$1 KMS + pennies for ECR/S3/Secrets Manager/CloudWatch. Model token costs are additional and vary by usage.*
+*\*\*\~$4 EC2 nano (Discord bot) + \~$3.60 public IPv4 + \~$1 KMS + pennies for ECR/S3/Secrets Manager/CloudWatch. Model token costs are additional and vary by usage.*
 
-> **Note**: If you use WhatsApp or Telegram (webhook-based) instead of Discord, you can eliminate the EC2 instance entirely — reducing infra to ~$1-2/month.
+> **Note**: If you use WhatsApp or Telegram (webhook-based) instead of Discord, you can eliminate the EC2 instance entirely — reducing infra to \~$1-2/month.
 
 ## Models
 
@@ -209,10 +209,10 @@ aws ssm send-command --instance-ids YOUR_INSTANCE_ID \
 ## FAQ
 
 **How much does it cost to run OpenClaw on AWS?**
-Infrastructure costs ~$9-15/month: a t4g.nano EC2 for the Discord bot (~$4), public IPv4 (~$3.60), KMS (~$1), and pennies for ECR/S3/Secrets Manager. Model token costs are additional and depend on usage — typically $5-15/month for personal use with Haiku 4.5.
+Infrastructure costs \~$9-15/month: a t4g.nano EC2 for the Discord bot (\~$4), public IPv4 (\~$3.60), KMS (\~$1), and pennies for ECR/S3/Secrets Manager. Model token costs are additional and depend on usage — typically $5-15/month for personal use with Haiku 4.5.
 
 **What's the cheapest way to host OpenClaw?**
-This AgentCore setup is one of the cheapest at ~$9/mo infra. If you use Telegram or WhatsApp instead of Discord (webhook-based, no EC2 needed), infra drops to ~$1-2/mo. Lightsail is $24/mo flat. A full EC2 deployment runs $35-80/mo.
+This AgentCore setup is one of the cheapest at \~$9/mo infra. If you use Telegram or WhatsApp instead of Discord (webhook-based, no EC2 needed), infra drops to \~$1-2/mo. Lightsail is $24/mo flat. A full EC2 deployment runs $35-80/mo.
 
 **Can I run OpenClaw without EC2?**
 Yes — the EC2 instance is only needed for the Discord bot (Discord requires a persistent WebSocket connection). If you use WhatsApp or Telegram (webhook-based), you can eliminate EC2 entirely and run fully serverless via API Gateway + Lambda + AgentCore.
