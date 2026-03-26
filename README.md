@@ -231,6 +231,7 @@ About 10 minutes. `bash scripts/deploy.sh` handles everything: template validati
 
 ## Resources
 
+- [Blog Post: How I Built It](https://builder.aws.com/content/3BUuc3XrsujHxoYbg4kgQ5qBiNV/personal-openclaw-on-aws-agentcore-for-dollar9mo-how-i-did-it) — detailed walkthrough on AWS Builder Center
 - [OpenClaw Docs](https://docs.openclaw.ai) · [OpenClaw GitHub](https://github.com/openclaw/openclaw)
 - [Amazon Bedrock Docs](https://docs.aws.amazon.com/bedrock/) · [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-get-started.html)
 - [OpenClaw on Lightsail](https://docs.aws.amazon.com/lightsail/latest/userguide/amazon-lightsail-quick-start-guide-openclaw.html) (official AWS guide)
