@@ -18,9 +18,7 @@ Parameters:
   DefaultModelId:
     Type: String
     Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-    Description: "Default Bedrock inference profile ID (must include region prefix: us., eu., or global.)"
-    AllowedPattern: '^(us\.|eu\.|global\.).*'
-    ConstraintDescription: "Must be a valid inference profile ID with region prefix"
+    Description: "Bedrock model or inference profile ID (e.g., us.anthropic.claude-haiku-4-5-20251001-v1:0 or minimax.minimax-m2.5)"
   
   DiscordBotToken:
     Type: String
