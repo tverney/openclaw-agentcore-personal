@@ -9,7 +9,12 @@ set -e
 AWS_PROFILE="${AWS_PROFILE:-personal}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
 STACK_NAME="openclaw-personal"
-GOG_EMAIL="${1:-lobinhaclowdia@gmail.com}"
+GOG_EMAIL="${1:-${GOG_ACCOUNT:-}}"
+
+if [ -z "$GOG_EMAIL" ]; then
+    echo "❌ No GOG account specified. Pass as argument or set GOG_ACCOUNT in .env"
+    exit 1
+fi
 
 echo "📤 Uploading GOG credentials for ${GOG_EMAIL}"
 echo ""
@@ -41,13 +46,24 @@ else
     exit 1
 fi
 
-# 2. Export and upload refresh token
-TOKEN_PATH="/tmp/gog-token-export.json"
-gog auth tokens export "$GOG_EMAIL" --out "$TOKEN_PATH" --overwrite
-aws s3 cp "$TOKEN_PATH" "s3://$BUCKET/gog-credentials/token.json" \
+# 2. Export and upload refresh token for each authenticated account
+for EMAIL in $(gog auth list 2>/dev/null | awk '{print $1}'); do
+    TOKEN_PATH="/tmp/gog-token-${EMAIL}.json"
+    gog auth tokens export "$EMAIL" --out "$TOKEN_PATH" --overwrite 2>/dev/null
+    if [ -f "$TOKEN_PATH" ]; then
+        aws s3 cp "$TOKEN_PATH" "s3://$BUCKET/gog-credentials/token-${EMAIL}.json" \
+            --profile $AWS_PROFILE --region $AWS_REGION
+        rm -f "$TOKEN_PATH"
+        echo "  ✅ Uploaded refresh token for $EMAIL"
+    fi
+done
+
+# Also upload default token.json for backward compatibility
+gog auth tokens export "$GOG_EMAIL" --out "/tmp/gog-token-export.json" --overwrite 2>/dev/null
+aws s3 cp "/tmp/gog-token-export.json" "s3://$BUCKET/gog-credentials/token.json" \
     --profile $AWS_PROFILE --region $AWS_REGION
-rm -f "$TOKEN_PATH"
-echo "  ✅ Uploaded refresh token"
+rm -f "/tmp/gog-token-export.json"
+echo "  ✅ Uploaded default refresh token ($GOG_EMAIL)"
 
 echo ""
 echo "🎉 Done! GOG credentials uploaded to S3."
