@@ -188,6 +188,7 @@ aws ssm send-command --instance-ids YOUR_INSTANCE_ID \
 
 - **Serverless AI**: AgentCore Runtime — container freezes when idle, no idle costs
 - **Session persistence**: Conversations, memory, and workspace backed up to S3
+- **Memory consolidation**: [agent-memory-daemon](https://github.com/tverney/agent-memory-daemon) runs alongside OpenClaw — extracts facts, preferences, and decisions from sessions, deduplicates and prunes memory files, keeps MEMORY.md organized and size-budgeted
 - **EventBridge cron**: Scheduled tasks via EventBridge → Lambda → AgentCore (survives container freezes)
 - **Multi-platform**: Discord bot included, WhatsApp/Telegram/Slack via OpenClaw plugins
 - **Custom skills**: Weather, notes/reminders, stock watcher, soccer scores, personal assistant
