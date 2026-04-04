@@ -9,7 +9,12 @@ set -e
 AWS_PROFILE="${AWS_PROFILE:-personal}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
 STACK_NAME="openclaw-personal"
-GOG_EMAIL="${1:-lobinhaclowdia@gmail.com}"
+GOG_EMAIL="${1:-${GOG_ACCOUNT:-}}"
+
+if [ -z "$GOG_EMAIL" ]; then
+    echo "❌ No GOG account specified. Pass as argument or set GOG_ACCOUNT in .env"
+    exit 1
+fi
 
 echo "📤 Uploading GOG credentials for ${GOG_EMAIL}"
 echo ""
