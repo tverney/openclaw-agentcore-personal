@@ -296,7 +296,7 @@ def restore_gog_credentials_from_s3() -> None:
         # ({installed: {client_id, ...}}). So we just place it in gog's config dir.
         logger.info(f"GOG credentials.json placed at {creds_path}")
 
-        # Import the refresh token
+        # Import the refresh token (default account)
         result = subprocess.run(
             ["gog", "auth", "tokens", "import", token_path],
             capture_output=True, text=True, timeout=10,
@@ -307,6 +307,27 @@ def restore_gog_credentials_from_s3() -> None:
             logger.info(f"GOG credentials restored for {gog_account}")
         else:
             logger.warning(f"GOG token import failed: {result.stderr}")
+
+        # Import per-account tokens (token-email@example.com.json)
+        try:
+            resp = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=f"{GOG_S3_PREFIX}token-")
+            for obj in resp.get("Contents", []):
+                key = obj["Key"]
+                tmp = f"/tmp/gog-{os.path.basename(key)}"
+                s3_client.download_file(bucket_name, key, tmp)
+                res = subprocess.run(
+                    ["gog", "auth", "tokens", "import", tmp],
+                    capture_output=True, text=True, timeout=10,
+                    env={**os.environ, "GOG_KEYRING_PASSWORD": os.environ.get("GOG_KEYRING_PASSWORD", "openclaw-gog-keyring-2024")},
+                )
+                account = os.path.basename(key).replace("token-", "").replace(".json", "")
+                logger.info(f"GOG token import {account}: rc={res.returncode}")
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error importing per-account GOG tokens: {e}")
 
         # Verify credentials were stored
         verify = subprocess.run(
