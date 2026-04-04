@@ -17,7 +17,7 @@ dry_run = false
 # Extraction settings
 extraction_enabled = true
 extraction_interval_ms = 60000
-max_extraction_session_chars = 5000
+max_extraction_session_chars = 2000
 
 [llm_backend]
 name = "bedrock"
