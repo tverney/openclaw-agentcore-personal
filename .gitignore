@@ -71,6 +71,7 @@ agent-container/community-skills.json
 
 # Built binaries
 agent-container/gog
+agent-container/alexacli
 
 # CloudFormation
 .cfn-lint-ignore
