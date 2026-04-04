@@ -203,6 +203,9 @@ fi
 if [ -n "$CRON_MODEL_ID" ]; then
     DEPLOY_PARAMS="$DEPLOY_PARAMS CronModelId=$CRON_MODEL_ID"
 fi
+if [ -n "$DEPLOY_USER_NAME" ]; then
+    DEPLOY_PARAMS="$DEPLOY_PARAMS DeployUserName=$DEPLOY_USER_NAME"
+fi
 
 if [ -n "$DISCORD_BOT_TOKEN" ]; then
     echo "   Including Discord bot configuration..."
