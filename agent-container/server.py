@@ -1606,7 +1606,7 @@ def main():
     memconsolidate_proc = None
     try:
         memconsolidate_proc = subprocess.Popen(
-            ["agent-memory-daemon", "start", "--config", "/app/memconsolidate.toml"],
+            ["agent-memory-daemon", "start", "/app/memconsolidate.toml"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
