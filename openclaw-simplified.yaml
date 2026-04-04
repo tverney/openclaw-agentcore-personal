@@ -77,10 +77,16 @@ Parameters:
     Default: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     Description: "Bedrock model ID used for scheduled cron job execution"
 
+  DeployUserName:
+    Type: String
+    Default: ""
+    Description: "IAM user name allowed to access the S3 bucket (for credential uploads). Leave empty to skip."
+
 Conditions:
   CreateDiscordBot: !Equals [!Ref EnableDiscordBot, "true"]
   HasKeyPair: !Not [!Equals [!Ref DiscordBotKeyPair, ""]]
   HasDiscordToken: !Not [!Equals [!Ref DiscordBotToken, ""]]
+  HasDeployUser: !Not [!Equals [!Ref DeployUserName, ""]]
 
 Resources:
   # VPC for Discord Bot (only if Discord bot enabled)
@@ -555,6 +561,10 @@ Resources:
                 aws:PrincipalArn:
                   - !GetAtt AgentCoreExecutionRole.Arn
                   - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !If
+                    - HasDeployUser
+                    - !Sub "arn:aws:iam::${AWS::AccountId}:user/${DeployUserName}"
+                    - !Ref "AWS::NoValue"
                   - !If
                     - CreateDiscordBot
                     - !GetAtt DiscordBotRole.Arn
