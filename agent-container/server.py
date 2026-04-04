@@ -1602,11 +1602,11 @@ def main():
     # Start background S3 sync thread
     start_sync_thread()
     
-    # Start memory consolidation daemon (memconsolidate)
+    # Start memory consolidation daemon (agent-memory-daemon)
     memconsolidate_proc = None
     try:
         memconsolidate_proc = subprocess.Popen(
-            ["memconsolidate", "/app/memconsolidate.toml"],
+            ["agent-memory-daemon", "start", "--config", "/app/memconsolidate.toml"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -1616,11 +1616,11 @@ def main():
                 if decoded:
                     logger.info(f"[memconsolidate] {decoded}")
         threading.Thread(target=log_memconsolidate, daemon=True).start()
-        logger.info(f"Started memconsolidate daemon (pid={memconsolidate_proc.pid})")
+        logger.info(f"Started agent-memory-daemon (pid={memconsolidate_proc.pid})")
     except FileNotFoundError:
-        logger.warning("memconsolidate not found, skipping memory daemon")
+        logger.warning("agent-memory-daemon not found, skipping memory daemon")
     except Exception as e:
-        logger.warning(f"Failed to start memconsolidate: {e}")
+        logger.warning(f"Failed to start agent-memory-daemon: {e}")
     
     # Start Discord bot in background thread
     start_discord_bot()
