@@ -1602,6 +1602,26 @@ def main():
     # Start background S3 sync thread
     start_sync_thread()
     
+    # Start memory consolidation daemon (memconsolidate)
+    memconsolidate_proc = None
+    try:
+        memconsolidate_proc = subprocess.Popen(
+            ["memconsolidate", "/app/memconsolidate.toml"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        def log_memconsolidate():
+            for line in memconsolidate_proc.stdout:
+                decoded = line.decode("utf-8", errors="replace").rstrip()
+                if decoded:
+                    logger.info(f"[memconsolidate] {decoded}")
+        threading.Thread(target=log_memconsolidate, daemon=True).start()
+        logger.info(f"Started memconsolidate daemon (pid={memconsolidate_proc.pid})")
+    except FileNotFoundError:
+        logger.warning("memconsolidate not found, skipping memory daemon")
+    except Exception as e:
+        logger.warning(f"Failed to start memconsolidate: {e}")
+    
     # Start Discord bot in background thread
     start_discord_bot()
     
@@ -1630,6 +1650,9 @@ def main():
         except Exception as e:
             logger.error(f"Final S3 sync failed: {e}")
         proc.terminate()
+        if memconsolidate_proc:
+            memconsolidate_proc.terminate()
+            logger.info("Stopped memconsolidate daemon")
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:

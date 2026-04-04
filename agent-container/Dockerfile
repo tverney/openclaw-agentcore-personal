@@ -37,6 +37,9 @@ RUN chmod +x /usr/local/bin/alexacli
 RUN echo '#!/bin/sh\nexec node /openclaw-app/openclaw.mjs "$@"' > /usr/local/bin/openclaw \
     && chmod +x /usr/local/bin/openclaw
 
+# Install memconsolidate daemon for memory consolidation and extraction
+RUN npm install -g memconsolidate
+
 WORKDIR /app
 
 # Install Python dependencies
@@ -46,6 +49,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Agent Container application files
 COPY agent-container/server.py .
 COPY agent-container/openclaw.json .
+COPY agent-container/memconsolidate.toml .
 
 # Copy custom skills into openclaw's bundled skills directory
 COPY agent-container/skills/ /openclaw-app/skills/
