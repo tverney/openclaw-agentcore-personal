@@ -39,6 +39,13 @@
     "defaults": {
       "model": {
         "primary": "amazon-bedrock/${BEDROCK_MODEL_ID}"
+      },
+      "models": {
+        "amazon-bedrock/${BEDROCK_MODEL_ID}": {
+          "params": {
+            "cacheRetention": "short"
+          }
+        }
       }
     }
   },
