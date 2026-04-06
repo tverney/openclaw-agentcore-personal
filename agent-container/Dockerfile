@@ -38,7 +38,7 @@ RUN echo '#!/bin/sh\nexec node /openclaw-app/openclaw.mjs "$@"' > /usr/local/bin
     && chmod +x /usr/local/bin/openclaw
 
 # Install agent-memory-daemon for memory consolidation and extraction
-RUN npm install -g agent-memory-daemon@2.4.0
+RUN npm install -g agent-memory-daemon@2.5.0
 
 WORKDIR /app
 
