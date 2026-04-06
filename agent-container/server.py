@@ -1170,6 +1170,25 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                 diag["cron_daemon"] = f"running (pid={result.stdout.strip()})" if result.returncode == 0 else "not running"
             except Exception as e:
                 diag["cron_daemon"] = f"error: {e}"
+            # Check agent-memory-daemon
+            try:
+                result = subprocess.run(
+                    ["agent-memory-daemon", "--version"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                diag["memconsolidate_version"] = result.stdout.strip() or result.stderr.strip() or "unknown"
+            except FileNotFoundError:
+                diag["memconsolidate_version"] = "not installed"
+            except Exception as e:
+                diag["memconsolidate_version"] = f"error: {e}"
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", "agent-memory-daemon"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                diag["memconsolidate_daemon"] = f"running (pid={result.stdout.strip()})" if result.returncode == 0 else "not running"
+            except Exception as e:
+                diag["memconsolidate_daemon"] = f"error: {e}"
             # EventBridge scheduling readiness
             diag["eventbridge_env"] = {
                 "CRON_SCHEDULER_ROLE_ARN": os.environ.get("CRON_SCHEDULER_ROLE_ARN", "NOT SET"),
