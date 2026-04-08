@@ -1385,10 +1385,9 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
         # Select model based on channel
         selected_model = select_model_for_channel(channel)
         
-        # Load persisted memory from S3 and inject it into the message.
-        # Openclaw caches workspace files in memory at startup, so overwriting
-        # files on disk doesn't help. Instead, we prepend the memory content
-        # directly into the user message so openclaw sees it as context.
+        # Load persisted memory from S3 and inject as system prompt.
+        # Using a system message allows Bedrock prompt caching (cacheRetention)
+        # to cache the memory prefix across turns, cutting input token costs ~90%.
         memory_context = load_memory_from_s3()
         
         logger.info(
@@ -1398,20 +1397,19 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
         
         start_ms = int(time.time() * 1000)
         try:
-            # Inject memory context directly into the user message
-            # (openclaw may ignore system messages, so we prepend to user content)
-            effective_message = message
-            if memory_context:
-                effective_message = (
-                    f"[LONG-TERM MEMORY - This is your persisted memory from previous sessions. "
-                    f"Use this to answer questions about the user's preferences and history. "
-                    f"Do NOT say this information doesn't exist - it's right here:]\n\n"
-                    f"{memory_context}\n\n"
-                    f"[END OF LONG-TERM MEMORY]\n\n"
-                    f"User message: {message}"
-                )
-            
             messages = []
+            
+            # Inject memory as system message (cacheable by Bedrock prompt caching)
+            if memory_context:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "You have access to long-term memory from previous sessions. "
+                        "Use this to answer questions about the user's preferences and history. "
+                        "Do NOT say this information doesn't exist.\n\n"
+                        f"{memory_context}"
+                    ),
+                })
             
             # Include conversation history from Discord thread if provided
             if history and isinstance(history, list):
@@ -1421,13 +1419,13 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                     if role in ("user", "assistant") and content:
                         messages.append({"role": role, "content": content})
             
-            messages.append({"role": "user", "content": effective_message})
+            messages.append({"role": "user", "content": message})
             
             logger.info(
                 f"Sending request to openclaw: model={selected_model}, "
-                f"message_length={len(effective_message)}, channel={channel}, "
+                f"message_length={len(message)}, channel={channel}, "
                 f"history_messages={len(messages)-1}, "
-                f"memory_injected={'yes' if memory_context else 'no'}"
+                f"memory_injected={'yes (system)' if memory_context else 'no'}"
             )
             
             resp = requests.post(
