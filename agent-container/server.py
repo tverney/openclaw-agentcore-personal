@@ -1418,7 +1418,10 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                     "content": (
                         "You have access to long-term memory from previous sessions. "
                         "Use this to answer questions about the user's preferences and history. "
-                        "Do NOT say this information doesn't exist.\n\n"
+                        "Do NOT say this information doesn't exist.\n"
+                        "IMPORTANT: Be concise. Keep responses brief and direct. "
+                        "Avoid repeating the question, unnecessary preamble, or verbose explanations. "
+                        "Short answers are better than long ones.\n\n"
                         f"{memory_context}"
                     ),
                 })

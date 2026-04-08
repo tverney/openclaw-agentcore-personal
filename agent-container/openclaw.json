@@ -52,6 +52,9 @@
             "cacheRetention": "short"
           }
         }
+      },
+      "heartbeat": {
+        "every": "4m"
       }
     }
   },
@@ -81,28 +84,28 @@
         "enabled": true
       },
       "weather": {
-        "enabled": true
+        "enabled": false
       },
       "alexa-cli": {
         "enabled": true
       },
       "my-weather": {
-        "enabled": true
+        "enabled": false
       },
       "notes-reminders": {
-        "enabled": true
+        "enabled": false
       },
       "personal-assistant": {
-        "enabled": true
+        "enabled": false
       },
       "soccer-cli": {
-        "enabled": true
+        "enabled": false
       },
       "stock-watcher": {
-        "enabled": true
+        "enabled": false
       },
       "tmux": {
-        "enabled": true
+        "enabled": false
       }
     }
   }
