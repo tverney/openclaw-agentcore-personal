@@ -29,7 +29,13 @@
             ],
             "contextWindow": 200000,
             "maxTokens": 8192,
-            "reasoning": false
+            "reasoning": false,
+            "cost": {
+              "input": 1.00,
+              "output": 5.00,
+              "cacheRead": 0.10,
+              "cacheWrite": 1.25
+            }
           }
         ]
       }

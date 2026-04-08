@@ -988,14 +988,6 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                 "discord_bot": "running" if discord_bot_proc and (hasattr(discord_bot_proc, 'is_alive') and discord_bot_proc.is_alive() or hasattr(discord_bot_proc, 'poll') and discord_bot_proc.poll() is None) else "dead",
                 "deployment_version": os.environ.get("DEPLOYMENT_VERSION", "unknown")
             })
-        elif self.path == "/cost":
-            daily = getattr(AgentCoreHandler, "_daily_cost", {"date": "n/a", "total": 0.0, "requests": 0})
-            self._respond(200, {
-                "date": daily["date"],
-                "daily_cost": round(daily["total"], 4),
-                "daily_requests": daily["requests"],
-                "note": "Resets on container restart or new day. Based on actual token usage from API responses.",
-            })
         elif self.path == "/errors":
             # Return recent errors from log file
             try:
@@ -1042,6 +1034,18 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "discord_bot": "running" if bot_alive else "dead",
                 "deployment_version": os.environ.get("DEPLOYMENT_VERSION", "unknown")
+            })
+        
+        # Cost tracking endpoint
+        elif payload.get("action") == "cost":
+            daily = getattr(AgentCoreHandler, "_daily_cost", {"date": "n/a", "total": 0.0, "requests": 0})
+            self._respond(200, {
+                "date": daily["date"],
+                "daily_cost_estimate": round(daily["total"], 4),
+                "daily_requests": daily["requests"],
+                "avg_cost_per_request": round(daily["total"] / max(daily["requests"], 1), 6),
+                "projected_monthly": round(daily["total"] * 30, 2),
+                "note": "Estimates based on ~4 chars/token. Use /usage in OpenClaw chat for precise tracking.",
             })
             return
         
@@ -1469,15 +1473,33 @@ class AgentCoreHandler(BaseHTTPRequestHandler):
             result = resp.json()
             duration_ms = int(time.time() * 1000) - start_ms
             
-            # Extract real token usage from OpenClaw response
+            # Extract token usage from OpenClaw response.
+            # OpenClaw returns zeros in the HTTP response; real tracking is internal.
+            # Estimate from character counts (~4 chars per token for English).
             usage = result.get("usage", {})
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
             cache_read = usage.get("cache_read_input_tokens", 0) or usage.get("cacheRead", 0)
             cache_write = usage.get("cache_creation_input_tokens", 0) or usage.get("cacheWrite", 0)
             
-            # Calculate cost using actual Bedrock pricing
+            # If OpenClaw returned zeros, estimate from content length
+            if input_tokens == 0:
+                # System message (memory) + user message + history
+                total_input_chars = len(memory_context) + len(message)
+                if history and isinstance(history, list):
+                    for entry in history[-10:]:
+                        total_input_chars += len(entry.get("content", ""))
+                input_tokens = total_input_chars // 4  # ~4 chars per token
+            if output_tokens == 0:
+                content = ""
+                choices = result.get("choices", [])
+                if choices:
+                    content = choices[0].get("message", {}).get("content", "")
+                output_tokens = len(content) // 4
+            
+            # Calculate cost using Bedrock pricing (estimates when API returns zeros)
             # Haiku 4.5: $1.00/1M input, $5.00/1M output, $0.10/1M cache read, $1.25/1M cache write
+            # Note: cache_read/cache_write not available from OpenClaw API response
             PRICING = {
                 "haiku": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25},
                 "sonnet": {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
